@@ -206,42 +206,58 @@ const SWAPS=['Swap soda for sparkling water with lime','Add a protein to your fa
 const MENTAL={low:['5-minute breathing: in 4, hold 4, out 6','Write 3 things you\'re grateful for','Text someone who makes you laugh','10 minutes outside with no phone'],ok:['Phone-free first 15 minutes after waking','Write tomorrow\'s top 3 tasks to clear your head','Listen to one song you love, fully','2-minute body scan before studying']};
 const SKIN=['Gentle cleanse AM & PM, then moisturize — no scrubbing','Change your pillowcase tonight','Moisturize arms/legs right after showering (KP-friendly habit)','Wash face after workouts; hands off your face while studying','Apply sunscreen before heading out','Lukewarm (not hot) shower today'];
 const weekPlan=()=>S.weeks[wkey()];
+function walkMinsFor(x,dk){let pad=0,dog=0;if(!x)return 0;const wg=x.goals&&x.goals.find(g=>g.id==='walk');
+ if(x.done&&x.done.walk&&wg){if(wg.kind==='dog')dog=wg.min;else pad=wg.min}
+ const logged=(x.dogWalks||[]).reduce((a,w)=>a+w.min,0);return pad+Math.max(dog,logged)}
 function weekStats(){
- const m=monday(new Date());let w=0,o=0,walk=0,rest=0;
- for(let i=0;i<7;i++){const d=new Date(m);d.setDate(m.getDate()+i);const x=S.days[dkey(d)];if(!x||!x.goals)continue;
-  const g=x.goals.find(g=>g.id==='workout');
-  if(x.done.workout&&g){if(g.kind==='otf')o++;else if(g.kind==='rest')rest++;else w++}
-  const wg=x.goals.find(g=>g.id==='walk');if(x.done.walk&&wg)walk+=wg.min}
- return {w,o,walk,rest};
+ const m=monday(new Date());let w=0,o=0,walk=0,rest=0,dog=0;
+ for(let i=0;i<7;i++){const d=new Date(m);d.setDate(m.getDate()+i);const x=S.days[dkey(d)];if(!x)continue;
+  walk+=walkMinsFor(x);dog+=(x.dogWalks||[]).length;if(!x.goals)continue;
+  const g=x.goals.find(g=>g.id==='walk'&&g.kind==='dog');if(g&&x.done.walk&&!(x.dogWalks||[]).length)dog++;
+  const wg=x.goals.find(g=>g.id==='workout');
+  if(x.done.workout&&wg){if(wg.kind==='otf')o++;else if(wg.kind==='rest')rest++;else w++}}
+ return {w,o,walk,rest,dog};
 }
+function walkText(g){g.t=g.min+'-min '+(g.kind==='dog'?'dog walk':'walking-pad walk');
+ g.d=g.kind==='dog'?'Fresh air for you both — brisk where the pup allows':(g.busy?'Walk while reviewing flashcards or a lecture':'Brisk, conversational pace')}
 function genGoals(c){
  const plan=weekPlan()||{workouts:3,otf:1,walk:150,rest:2};
- const ws=weekStats();const dLeft=7-((new Date().getDay()+6)%7);
- const tired=c.sleep<=1||c.energy<=1,sore=c.sore>=3,busy=c.busy>=3,wk=weekNo(),g=[];
- if(c.otf)g.push({id:'workout',kind:'otf',t:'Orangetheory class',d:'That\'s your workout! Eat a snack 1-2 hrs before.',core:1,open:'w:flex'});
- else if(c.gym)g.push({id:'workout',kind:'gym',t:'Campus gym session',d:'~40 min machine circuit',core:1,open:'gym'});
- else if(tired||sore||(ws.w>=plan.workouts&&ws.rest<plan.rest))g.push({id:'workout',kind:'rest',t:'Restore & mobility',d:(tired?'Low-energy day — gentle is smart. ':'')+'~10 min of stretches',core:1,open:'w:mobility'});
- else{const key=c.mins<=15?'quick':pick(['lower','upper','full','legs2','core'],seedNum()+ws.w);
-  g.push({id:'workout',kind:'str',t:WORKOUTS[key].n,d:(c.mins<=15?'15':c.mins<=30?'20':'30')+' min · higher reps · week '+wk,core:1,open:'w:'+key})}
+ const ws=weekStats(),dLeft=7-((new Date().getDay()+6)%7),wk=weekNo(),g=[];
+ const pain=c.pain||[],sick=pain.includes('sick'),injury=pain.includes('injury'),headache=pain.includes('headache');
+ const cramps=pain.includes('cramps')||c.cycle==='period',areas=(c.soreAreas||[]).filter(a=>a!=='none');
+ const tired=c.sleep<=1||c.energy<=1,sore=c.sore>=3,busy=c.busy>=3;
+ if(sick)g.push({id:'workout',kind:'rest',t:'Rest & recover',d:'Feeling unwell — skip workouts. Gentle stretching only if it feels good.',core:1,open:'w:mobility'});
+ else if(c.otf)g.push({id:'workout',kind:'otf',t:'Orangetheory class',d:'That\'s your workout! Eat a snack 1-2 hrs before.',core:1,open:'w:flex'});
+ else if(c.gym)g.push({id:'workout',kind:'gym',t:'Campus gym session',d:'~40 min machine circuit'+(injury?' — skip anything that hurts':''),core:1,open:'gym'});
+ else{
+  let keys=c.mins<=15?['quick']:['lower','upper','full','legs2','core'];
+  const legs=areas.some(a=>a==='legs'||a==='glutes'),arms=areas.some(a=>a==='arms'||a==='back');
+  keys=keys.filter(k=>!(legs&&['lower','legs2','full','quick'].includes(k))&&!(arms&&['upper','full','quick'].includes(k))&&!(areas.includes('core')&&k==='core'));
+  const why=tired?'Low energy / short sleep — gentle is smart. ':injury?'Pain noted — go easy and skip anything that hurts. ':cramps&&c.energy<=2?'Cramps or period — gentle movement can help. ':sore?'Very sore — recovery day. ':'';
+  if(why||!keys.length||(ws.w>=plan.workouts&&ws.rest<plan.rest))g.push({id:'workout',kind:'rest',t:'Restore & mobility',d:why+'~10 min of stretches',core:1,open:'w:mobility'});
+  else{const key=pick(keys,seedNum()+ws.w);g.push({id:'workout',kind:'str',t:WORKOUTS[key].n,d:(c.mins<=15?'15':c.mins<=30?'20':'30')+' min · higher reps · week '+wk+(areas.length?' · rests your sore '+areas.join('/'):''),core:1,open:'w:'+key})}
+ }
  const need=Math.max(0,plan.walk-ws.walk);let wm=Math.round(need/dLeft/5)*5;
- wm=Math.max(10,Math.min(wm||15,45));if(busy||c.otf)wm=Math.min(wm,15);if(tired)wm=Math.min(wm,20);
- g.push({id:'walk',min:wm,t:wm+'-min walking-pad walk',d:busy?'Walk while reviewing flashcards or a lecture':'Brisk, conversational pace',core:1});
- const water=64+(c.otf||c.gym||g[0].kind==='str'?16:0);
- g.push({id:'water',oz:water,t:'Drink '+water+' oz of water',d:'Tap + on the water tracker as you go',core:1});
- g.push({id:'eat',t:'3 meals + 1 snack, ~90 g protein',d:'Protein at every meal. Fuel before you\'re starving.',core:1});
+ wm=Math.max(10,Math.min(wm||15,45));if(busy||c.otf)wm=Math.min(wm,15);if(tired||sick)wm=Math.min(wm,c.dog?20:15);
+ if(c.dog&&!sick)wm=Math.max(wm,20);
+ const wg={id:'walk',min:wm,kind:c.dog?'dog':'pad',busy,core:1,open:'walk'};walkText(wg);if(sick)wg.d='Only if you feel up to it — slow and easy';g.push(wg);
+ let water=64+(c.otf||c.gym||g[0].kind==='str'?16:0)+(c.hyd===1?8:0)+(sick||headache?16:0);water=Math.min(water,96);
+ g.push({id:'water',oz:water,t:'Drink '+water+' oz of water',d:c.hyd===1?'Yesterday was low — front-load water this morning':headache?'Headaches often ease with water — sip steadily':'Tap + on the water tracker as you go',core:1});
+ const ed=c.ate==='skip'?'Yesterday was light — eat breakfast within an hour of waking.':c.ate==='fast'?'Make at least one meal from home or the grocery store.':c.cycle==='luteal'?'Hunger may run higher this week — add an extra snack.':'Protein at every meal. Fuel before you\'re starving.';
+ g.push({id:'eat',t:'3 meals + 1 snack, ~90 g protein',d:ed,core:1});
  const stepT=Math.min(8000,2500+500*(wk-1));
- g.push({id:'steps',steps:stepT,t:stepT.toLocaleString()+' steps',d:'Building up gradually from ~2,000',core:busy?0:1});
- g.push({id:'mind',t:pick(MENTAL[c.mood<=2?'low':'ok'],seedNum()),d:'Mental health',core:busy||c.mood<=2?1:0});
+ g.push({id:'steps',steps:stepT,t:stepT.toLocaleString()+' steps',d:c.dog?'Your dog walk counts toward this!':'Building up gradually from ~2,000',core:busy||sick?0:1});
+ g.push({id:'mind',t:pick(MENTAL[c.mood<=2?'low':'ok'],seedNum()),d:'Mental health'+(c.stress>=4?' · high stress today':''),core:busy||c.mood<=2?1:0});
  g.push({id:'swap',t:pick(SWAPS,seedNum()),d:'Healthy swap',core:0});
  g.push({id:'stretch',t:'Flexibility flow (8 min)',d:'Stretching',core:0,open:'w:flex'});
- g.push({id:'sleep',t:'Lights out by '+(c.sleep<=1?'10:30 PM':'11:00 PM'),d:'Screens off 30 min before bed',core:tired?1:0});
+ const early=c.sleep<=1||(c.sleepH&&c.sleepH<7)||c.bed>=3;
+ g.push({id:'sleep',t:'Lights out by '+(early?'10:30 PM':'11:00 PM'),d:(c.sleepH?'You got '+c.sleepH+' h — aim for 8. ':'')+'Screens off 30 min before bed',core:tired||early?1:0});
  g.push({id:'skin',t:pick(SKIN,seedNum()),d:'Skin-care habit',core:0});
  g.push({id:'break',t:'Study-break reset ×2',d:'2 min of stretches between study blocks',core:0,open:'w:study'});
  const max=busy?4:6;let n=0;
  g.forEach(x=>{if(x.core&&n<max){x.show=1;n++}});g.forEach(x=>{if(!x.show&&n<max){x.show=1;n++}});
  return g;
 }
-
 let tab='today';
 const TABS=[['today','☀︎','Today'],['plan','◷','Week'],['moves','✦','Moves'],['meals','❀','Meals'],['track','♡','Track']];
 function nav(){$('#nav').innerHTML=TABS.map(t=>`<button class="${tab===t[0]?'on':''}" data-tab="${t[0]}"><span>${t[1]}</span>${t[2]}</button>`).join('')}
@@ -258,7 +274,7 @@ function vToday(){
  if(!weekPlan())return countdown()+`<div class="card"><h2>Let's set your week</h2><p class="sub">Takes 30 seconds. Your daily goals balance toward it.</p><button class="btn" data-act="planEdit">Plan this week</button></div>`;
  if(!x.checkin)return countdown()+`<div class="card"><h2>Morning check-in</h2><p class="sub">About a minute. Tap your answers and I'll build today around you.</p><button class="btn" data-act="quiz">Start check-in</button></div>`;
  const vis=x.goals.filter(g=>g.show),more=x.goals.filter(g=>!g.show),done=vis.filter(g=>x.done[g.id]).length;
- const gl=g=>`<div class="goal ${x.done[g.id]?'done':''}"><button class="chk" data-goal="${g.id}" aria-label="mark done">✓</button><div class="gi"><div class="gt">${g.t}</div><div class="gd">${g.d}</div></div>${g.open?`<button class="go" data-open="${g.open}">Open ›</button>`:''}</div>`;
+ const gl=g=>`<div class="goal ${x.done[g.id]?'done':''}"><button class="chk" data-goal="${g.id}" aria-label="mark done">✓</button><div class="gi"><div class="gt">${g.t}</div><div class="gd">${g.d}</div></div>${g.open?`<button class="go" data-open="${g.open}">${g.open==='walk'?(g.kind==='dog'?'Use pad':'Dog walk'):'Open ›'}</button>`:''}</div>`;
  const wg=x.goals.find(g=>g.id==='water');
  return countdown()+`<div class="card"><div class="row" style="justify-content:space-between"><h2>Today</h2><span class="pill">${done}/${vis.length} done</span></div>
  ${x.checkin.busy>=3?'<span class="pill">Busy-day mode · short list</span>':''}
@@ -269,31 +285,51 @@ function vToday(){
  <button class="btn ghost" data-act="quiz">Redo check-in</button>`;
 }
 let Q={};
+const HRS=[];for(let h=4;h<=10;h+=.5)HRS.push([h+(h===10?'+':'')+' h',h]);
 function quizQs(){
  const qs=[
-  ['sleep','How did you sleep?',[['Rough (<6h)',1],['Okay',2],['Good',3],['Great',4]]],
-  ['energy','Energy right now?',[['Running on empty',1],['Low',2],['Decent',3],['Ready to go',4]]],
-  ['sore','Any soreness?',[['None',1],['A little',2],['Very sore',3]]],
-  ['busy','How packed is today?',[['Light',1],['Normal classes',2],['Heavy reading',3],['Exam / deadline',4]]],
-  ['mins','Minutes free for a workout?',[['10',10],['15',15],['20-30',30],['45+',45]]],
-  ['otf','Orangetheory today?',[['Yes',1],['No',0]]],
-  ['gym','Campus gym today?',[['Yes',1],['No',0]]],
-  ['mood','Mood / stress?',[['Stressed',1],['Meh',2],['Calm',3],['Happy',4]]],
-  ['skin','How\'s your skin today?',[['Flaring',1],['So-so',2],['Good',3]]]];
+  {k:'sleepH',q:'Hours of sleep last night?',o:HRS,num:1},
+  {k:'sleepQ',q:'Sleep quality?',o:[['Restless',1],['So-so',2],['Solid',3],['Deep & restful',4]]},
+  {k:'bed',q:'What time did you go to bed?',o:[['Before 10',0],['10-11',1],['11-12',2],['12-1 AM',3],['After 1 AM',4]]},
+  {k:'wake',q:'What time did you wake up?',o:[['Before 6',0],['6-7',1],['7-8',2],['8-9',3],['After 9',4]]},
+  {k:'energy',q:'Energy right now?',o:[['Running on empty',1],['Low',2],['Decent',3],['Ready to go',4]]},
+  {k:'hyd',q:'Water yesterday?',o:[['Barely any',1],['Some (~4 glasses)',2],['Good (8+ glasses)',3]]},
+  {k:'ate',q:'How did you eat yesterday?',o:[['Skipped meals / not enough','skip'],['Mostly fast food','fast'],['Mixed','mixed'],['Balanced & enough','good']]},
+  {k:'soreAreas',q:'Sore anywhere?',multi:1,o:[['Not sore','none'],['Legs','legs'],['Glutes','glutes'],['Arms','arms'],['Back','back'],['Core','core']]},
+  {k:'soreLvl',q:'How sore?',o:[['A little',2],['Very sore',3]],when:()=>(Q.soreAreas||[]).some(a=>a!=='none')},
+  {k:'stress',q:'Stress level (1-5)?',num:1,o:[['1',1],['2',2],['3',3],['4',4],['5',5]]},
+  {k:'busy',q:'Classes or exams today?',o:[['No class',1],['Normal classes',2],['Heavy reading / clinic',3],['Exam or deadline',4]]},
+  {k:'mins',q:'Minutes free for a workout?',o:[['10',10],['15',15],['20-30',30],['45+',45]]},
+  {k:'otf',q:'Orangetheory today?',o:[['Yes',1],['No',0]]},
+  {k:'gym',q:'Campus gym today?',o:[['Yes',1],['No',0]],when:()=>!Q.otf},
+  {k:'dog',q:'Can you walk the dog today?',o:[['Yes',1],['No',0]]},
+  {k:'pain',q:'Any pain or feeling sick?',multi:1,o:[['All good','none'],['Headache','headache'],['Cramps','cramps'],['Cold / sick','sick'],['Joint or injury pain','injury']]},
+  {k:'cycle',q:'Cycle phase? (optional)',skip:1,o:[['On my period','period'],['After period','follicular'],['Mid-cycle','ovulation'],['Before period (PMS)','luteal']]},
+  {k:'skin',q:'How\'s your skin today?',o:[['Flaring',1],['So-so',2],['Good',3]]}];
  const firstOfWeek=!Object.keys(S.days).some(k=>k>=wkey()&&k!==today()&&S.days[k].checkin);
- if(firstOfWeek)qs.splice(5,0,['otfWeek','Orangetheory classes planned this week?',[['0',0],['1',1],['2',2],['3',3]]]);
- return qs;
+ if(firstOfWeek)qs.splice(12,0,{k:'otfWeek',q:'Orangetheory classes planned this week?',o:[['0',0],['1',1],['2',2],['3',3]]});
+ return qs.filter(q=>!q.when||q.when());
 }
 function quiz(i){
- const qs=quizQs();i=i||0;if(i===0)Q={};
+ i=i||0;if(i===0)Q={};const qs=quizQs();
  if(i>=qs.length)return finishQuiz();
- const q=qs[i];
- openSheet(`<button class="x" data-act="close">×</button><div class="qn">Check-in · ${i+1} of ${qs.length}</div><h2>${q[1]}</h2><div class="opts">${q[2].map(o=>`<button class="opt" data-q="${q[0]}" data-v="${o[1]}" data-i="${i}">${o[0]}</button>`).join('')}</div><div class="bar"><i style="width:${i/qs.length*100}%"></i></div>`);
+ const q=qs[i],sel=Q[q.k]||[];
+ const ob=o=>q.multi?`<button class="opt ${sel.includes(o[1])?'on':''}" data-qm="${q.k}" data-v="${o[1]}" data-i="${i}">${o[0]}</button>`:`<button class="opt" ${q.num?'style="flex:1 1 18%"':''} data-q="${q.k}" data-v="${o[1]}" data-i="${i}">${o[0]}</button>`;
+ openSheet(`<button class="x" data-act="close">×</button><div class="qn">Check-in · ${i+1} of ${qs.length}</div><h2>${q.q}</h2>${q.multi?'<p class="sub">Tap all that apply</p>':''}<div class="opts">${q.o.map(ob).join('')}</div>
+ ${q.multi?`<button class="btn" data-act="qNext" data-i="${i}">Next</button>`:''}${q.skip?`<button class="btn ghost" data-act="qNext" data-i="${i}">Skip</button>`:''}
+ <div class="bar"><i style="width:${i/qs.length*100}%"></i></div>`);
 }
 function finishQuiz(){
- const x=day();x.checkin=Q;
- if(Q.otfWeek!==undefined&&weekPlan())weekPlan().otf=Q.otfWeek;
- const old=x.done||{};x.goals=genGoals(Q);x.done={};x.goals.forEach(g=>{if(old[g.id])x.done[g.id]=1});
+ const x=day(),c=Q;
+ // derive legacy fields so trends & older logic keep working
+ c.sleep=c.sleepH<6?1:c.sleepH<7?2:c.sleepH<8?3:4;if(c.sleepQ===1&&c.sleep>1)c.sleep--;
+ const ar=(c.soreAreas||[]).filter(a=>a!=='none');c.sore=ar.length?(c.soreLvl||2):1;
+ c.mood=c.stress>=5?1:c.stress===4?2:c.stress===3?3:4;
+ c.pain=(c.pain||[]).filter(p=>p!=='none');
+ if(c.otf)c.gym=0;
+ x.checkin=c;
+ if(c.otfWeek!==undefined&&weekPlan())weekPlan().otf=c.otfWeek;
+ const old=x.done||{};x.goals=genGoals(c);x.done={};x.goals.forEach(g=>{if(old[g.id])x.done[g.id]=1});
  save();closeSheet();go('today');
 }
 function vPlan(){
@@ -351,57 +387,122 @@ function tStart(sec){clearInterval(timerInt);let t=sec;$('#tm').textContent=t;
  timerInt=setInterval(()=>{t--;const el=$('#tm');if(!el)return clearInterval(timerInt);el.textContent=t;if(t<=0){clearInterval(timerInt);el.textContent='✓';if(navigator.vibrate)navigator.vibrate(200)}},1000)}
 function gymSheet(){openSheet(`<button class="x" data-act="close">×</button><h2>${GYM.n}</h2>${GYM.items.map(i=>`<div class="goal"><div class="gi"><div class="gt">${i[0]}</div><div class="gd">${i[1]}</div></div></div>`).join('')}<p class="sub">${GYM.note}</p><button class="btn" data-act="logGym">Log gym session</button>`)}
 
+// M(name, meal, min, cost, protein g, protein key, cuisine, equipment(any of), allergens, veg, carb, tags, items "Name|Section;...")
+function M(n,m,min,c,pro,p,cu,eq,al,veg,carb,tags,it){return {n,m,min,c,pro,p,cu,eq,al,veg,carb,tags,it:it.split(';').map(s=>s.split('|'))}}
 const MEALS=[
- {n:'Greek yogurt parfait',m:'b',min:3,c:1,pro:20,tags:['sweet','veg'],it:[['Greek yogurt (big tub)','Dairy'],['Berries','Produce'],['Granola','Pantry']]},
- {n:'Scrambled eggs on toast + fruit',m:'b',min:8,c:1,pro:20,tags:['savory','veg'],it:[['Eggs (dozen)','Dairy'],['Whole-grain bread','Bakery'],['Bananas','Produce']]},
- {n:'Overnight protein oats',m:'b',min:5,c:1,pro:25,tags:['sweet','veg'],it:[['Rolled oats','Pantry'],['Protein powder','Pantry'],['Milk','Dairy'],['Chia seeds','Pantry']]},
- {n:'Egg & cheese breakfast burrito',m:'b',min:10,c:1,pro:24,tags:['savory','veg','spicy'],it:[['Eggs (dozen)','Dairy'],['Tortillas','Bakery'],['Shredded cheese','Dairy'],['Salsa','Pantry']]},
- {n:'Peanut butter banana smoothie',m:'b',min:4,c:1,pro:25,tags:['sweet','veg'],it:[['Bananas','Produce'],['Peanut butter','Pantry'],['Milk','Dairy'],['Protein powder','Pantry']]},
- {n:'Chicken Caesar wrap',m:'l',min:5,c:1,pro:32,tags:['savory'],it:[['Rotisserie chicken','Meat'],['Tortillas','Bakery'],['Romaine','Produce'],['Caesar dressing','Pantry']]},
- {n:'Turkey, hummus & veggie pita',m:'l',min:5,c:1,pro:25,tags:['savory'],it:[['Sliced turkey','Deli'],['Pita','Bakery'],['Hummus','Deli'],['Cucumber','Produce']]},
- {n:'Tuna salad + crackers & grapes',m:'l',min:5,c:1,pro:28,tags:['savory','fish'],it:[['Canned tuna','Pantry'],['Whole-grain crackers','Pantry'],['Grapes','Produce'],['Greek yogurt (big tub)','Dairy']]},
- {n:'Chicken burrito bowl',m:'l',min:10,c:2,pro:35,tags:['savory','spicy'],it:[['Rotisserie chicken','Meat'],['Microwave rice','Pantry'],['Black beans','Pantry'],['Salsa','Pantry'],['Avocado','Produce']]},
- {n:'Edamame quinoa bowl',m:'l',min:10,c:2,pro:22,tags:['savory','veg'],it:[['Frozen edamame','Frozen'],['Microwave quinoa','Pantry'],['Shredded carrots','Produce'],['Sesame dressing','Pantry']]},
- {n:'Sheet-pan chicken & veggies',m:'d',min:30,c:2,pro:35,tags:['savory'],it:[['Chicken breasts','Meat'],['Broccoli','Produce'],['Sweet potatoes','Produce'],['Olive oil','Pantry']]},
- {n:'Salmon, rice & green beans',m:'d',min:20,c:3,pro:34,tags:['savory','fish'],it:[['Salmon fillets','Meat'],['Microwave rice','Pantry'],['Frozen green beans','Frozen']]},
- {n:'Turkey taco night',m:'d',min:20,c:2,pro:30,tags:['savory','spicy'],it:[['Ground turkey','Meat'],['Taco shells','Pantry'],['Shredded cheese','Dairy'],['Romaine','Produce'],['Salsa','Pantry']]},
- {n:'Pasta with meat sauce + side salad',m:'d',min:25,c:1,pro:30,tags:['savory'],it:[['Ground turkey','Meat'],['Protein pasta','Pantry'],['Marinara','Pantry'],['Bagged salad','Produce']]},
- {n:'Shrimp stir-fry',m:'d',min:15,c:3,pro:30,tags:['savory','fish'],it:[['Frozen shrimp','Frozen'],['Frozen stir-fry veggies','Frozen'],['Microwave rice','Pantry'],['Soy sauce','Pantry']]},
- {n:'Black bean & cheese quesadillas',m:'d',min:10,c:1,pro:24,tags:['savory','veg'],it:[['Tortillas','Bakery'],['Black beans','Pantry'],['Shredded cheese','Dairy'],['Salsa','Pantry']]},
- {n:'Tofu & veggie curry',m:'d',min:25,c:2,pro:22,tags:['savory','veg','spicy'],it:[['Extra-firm tofu','Produce'],['Curry sauce jar','Pantry'],['Frozen spinach','Frozen'],['Microwave rice','Pantry']]}
+ M('Greek yogurt parfait','b',3,1,20,'yogurt','american',[],['dairy','gluten'],['berries'],'oats',['sweet','grab'],'Greek yogurt (big tub)|Dairy;Berries|Produce;Granola|Pantry'),
+ M('Scrambled eggs on toast + fruit','b',8,1,20,'eggs','american',['stove','micro'],['egg','gluten'],[],'bread',['savory','hot'],'Eggs (dozen)|Dairy;Whole-grain bread|Bakery;Bananas|Produce'),
+ M('Overnight protein oats','b',5,1,25,'yogurt','american',[],['dairy'],['berries'],'oats',['sweet','grab'],'Rolled oats|Pantry;Protein powder|Pantry;Milk|Dairy;Chia seeds|Pantry;Berries|Produce'),
+ M('Egg & cheese breakfast burrito','b',10,1,24,'eggs','mexican',['stove','micro'],['egg','dairy','gluten'],['peppers'],'tortillas',['savory','hot','spicy'],'Eggs (dozen)|Dairy;Tortillas|Bakery;Shredded cheese|Dairy;Bell peppers|Produce;Salsa|Pantry'),
+ M('Peanut butter banana protein smoothie','b',4,1,25,'yogurt','american',['blender'],['nuts','dairy'],[],'none',['sweet','smoothie','grab'],'Bananas|Produce;Peanut butter|Pantry;Milk|Dairy;Protein powder|Pantry'),
+ M('Berry spinach protein smoothie','b',4,1,24,'yogurt','american',['blender'],['dairy'],['spinach','berries'],'none',['sweet','smoothie','grab'],'Frozen berries|Frozen;Spinach|Produce;Greek yogurt (big tub)|Dairy;Protein powder|Pantry'),
+ M('Turkey sausage & egg muffins (prep 6)','b',25,2,22,'turkey','american',['oven','airfryer'],['egg','dairy'],['spinach','peppers'],'none',['savory','grab','prep'],'Eggs (dozen)|Dairy;Turkey sausage|Meat;Spinach|Produce;Bell peppers|Produce;Shredded cheese|Dairy'),
+ M('Tofu veggie scramble wrap','b',10,1,20,'tofu','american',['stove'],['soy','gluten'],['spinach','peppers'],'tortillas',['savory','hot'],'Extra-firm tofu|Produce;Spinach|Produce;Bell peppers|Produce;Tortillas|Bakery'),
+ M('Air-fryer potatoes + fried eggs','b',18,1,18,'eggs','american',['airfryer','oven'],['egg'],['peppers'],'potatoes',['savory','hot'],'Baby potatoes|Produce;Eggs (dozen)|Dairy;Bell peppers|Produce'),
+ M('Cottage cheese toast with tomato & egg','b',6,1,26,'eggs','american',['micro','stove'],['dairy','egg','gluten'],['tomatoes'],'bread',['savory','grab'],'Cottage cheese|Dairy;Whole-grain bread|Bakery;Tomatoes|Produce;Eggs (dozen)|Dairy'),
+ M('Chicken Caesar wrap','l',5,1,32,'chicken','american',[],['dairy','gluten','egg'],['lettuce'],'tortillas',['savory'],'Rotisserie chicken|Meat;Tortillas|Bakery;Romaine|Produce;Caesar dressing|Pantry;Parmesan|Dairy'),
+ M('Turkey, hummus & cucumber pita','l',5,1,25,'turkey','mediterranean',[],['gluten','sesame'],['cucumber'],'bread',['savory'],'Sliced turkey|Deli;Pita|Bakery;Hummus|Deli;Cucumber|Produce'),
+ M('Tuna salad + crackers & grapes','l',5,1,28,'tuna','american',[],['fish','gluten','dairy'],[],'bread',['savory'],'Canned tuna|Pantry;Whole-grain crackers|Pantry;Grapes|Produce;Greek yogurt (big tub)|Dairy'),
+ M('Chicken burrito bowl','l',10,2,35,'chicken','mexican',['micro'],[],['peppers','lettuce','avocado'],'rice',['savory','spicy'],'Rotisserie chicken|Meat;Microwave rice|Pantry;Black beans|Pantry;Salsa|Pantry;Avocado|Produce;Romaine|Produce'),
+ M('Edamame quinoa bowl','l',10,2,22,'tofu','asian',['micro'],['soy','sesame'],['carrots','cucumber'],'quinoa',['savory'],'Frozen edamame|Frozen;Microwave quinoa|Pantry;Shredded carrots|Produce;Cucumber|Produce;Sesame dressing|Pantry'),
+ M('Salmon rice bowl (pouch salmon)','l',8,2,28,'salmon','asian',['micro'],['fish','soy'],['cucumber','carrots','avocado'],'rice',['savory'],'Salmon pouches|Pantry;Microwave rice|Pantry;Cucumber|Produce;Shredded carrots|Produce;Avocado|Produce;Soy sauce|Pantry'),
+ M('Greek chicken power bowl','l',10,2,34,'chicken','mediterranean',['micro'],['dairy'],['cucumber','tomatoes'],'quinoa',['savory'],'Rotisserie chicken|Meat;Microwave quinoa|Pantry;Cucumber|Produce;Cherry tomatoes|Produce;Feta|Dairy;Tzatziki|Deli'),
+ M('Ham & cheese roll-ups + fruit + pretzels','l',5,1,24,'pork','american',[],['dairy','gluten'],[],'bread',['savory','grab'],'Sliced ham|Deli;Cheese slices|Dairy;Pretzels|Pantry;Apples|Produce'),
+ M('Steak & cheese quesadilla','l',12,2,30,'beef','mexican',['stove'],['dairy','gluten'],['peppers','onions'],'tortillas',['savory'],'Shaved steak|Meat;Tortillas|Bakery;Shredded cheese|Dairy;Bell peppers|Produce;Onions|Produce'),
+ M('Black bean & corn salad with feta','l',8,1,20,'beans','mexican',[],['dairy'],['tomatoes','onions','avocado'],'none',['savory','spicy'],'Black beans|Pantry;Frozen corn|Frozen;Cherry tomatoes|Produce;Avocado|Produce;Feta|Dairy'),
+ M('Sheet-pan chicken, broccoli & sweet potato','d',30,2,35,'chicken','american',['oven','airfryer'],[],['broccoli'],'potatoes',['savory','prep'],'Chicken breasts|Meat;Broccoli|Produce;Sweet potatoes|Produce;Olive oil|Pantry'),
+ M('Air-fryer salmon, rice & green beans','d',20,3,34,'salmon','american',['airfryer','oven'],['fish'],['greenbeans'],'rice',['savory'],'Salmon fillets|Meat;Microwave rice|Pantry;Frozen green beans|Frozen'),
+ M('Turkey taco night','d',20,2,30,'turkey','mexican',['stove'],['dairy','gluten'],['lettuce','tomatoes'],'tortillas',['savory','spicy','prep'],'Ground turkey|Meat;Tortillas|Bakery;Shredded cheese|Dairy;Romaine|Produce;Tomatoes|Produce;Salsa|Pantry'),
+ M('Protein pasta with meat sauce + salad','d',25,1,30,'beef','italian',['stove'],['gluten'],['spinach','lettuce'],'pasta',['savory','prep'],'Lean ground beef|Meat;Protein pasta|Pantry;Marinara|Pantry;Spinach|Produce;Bagged salad|Produce'),
+ M('Shrimp & veggie stir-fry','d',15,3,30,'shrimp','asian',['stove'],['shellfish','soy'],['broccoli','peppers'],'rice',['savory'],'Frozen shrimp|Frozen;Frozen stir-fry veggies|Frozen;Microwave rice|Pantry;Soy sauce|Pantry'),
+ M('Black bean & cheese quesadillas','d',10,1,24,'beans','mexican',['stove','airfryer'],['dairy','gluten'],['peppers'],'tortillas',['savory'],'Tortillas|Bakery;Black beans|Pantry;Shredded cheese|Dairy;Bell peppers|Produce;Salsa|Pantry'),
+ M('Tofu & spinach coconut curry','d',25,2,22,'tofu','asian',['stove'],['soy'],['spinach'],'rice',['savory','spicy','prep'],'Extra-firm tofu|Produce;Curry sauce jar|Pantry;Spinach|Produce;Microwave rice|Pantry'),
+ M('Pork tenderloin, sweet potato & green beans','d',35,2,33,'pork','american',['oven','airfryer'],[],['greenbeans'],'potatoes',['savory','prep'],'Pork tenderloin|Meat;Sweet potatoes|Produce;Frozen green beans|Frozen'),
+ M('Beef & broccoli rice bowl','d',20,2,32,'beef','asian',['stove'],['soy'],['broccoli'],'rice',['savory'],'Flank steak|Meat;Broccoli|Produce;Microwave rice|Pantry;Stir-fry sauce|Pantry'),
+ M('Air-fryer chicken tenders + roasted veggies','d',20,2,34,'chicken','american',['airfryer','oven'],['egg','gluten'],['broccoli','carrots'],'potatoes',['savory'],'Chicken tenders (raw)|Meat;Panko|Pantry;Eggs (dozen)|Dairy;Broccoli|Produce;Baby carrots|Produce'),
+ M('Turkey meatballs with marinara pasta','d',30,2,32,'turkey','italian',['oven','airfryer'],['gluten','egg','dairy'],['spinach'],'pasta',['savory','prep'],'Ground turkey|Meat;Eggs (dozen)|Dairy;Parmesan|Dairy;Marinara|Pantry;Protein pasta|Pantry;Spinach|Produce'),
+ M('Slow-cooker pork carnitas bowls','d',15,2,32,'pork','mexican',['slowcooker'],[],['peppers','onions','avocado'],'rice',['savory','spicy','prep'],'Pork shoulder|Meat;Microwave rice|Pantry;Black beans|Pantry;Onions|Produce;Avocado|Produce;Salsa|Pantry'),
+ M('Burger bowls with crispy potatoes','d',25,2,32,'beef','american',['stove','airfryer'],['dairy'],['lettuce','tomatoes','onions'],'potatoes',['savory'],'Lean ground beef|Meat;Baby potatoes|Produce;Romaine|Produce;Tomatoes|Produce;Cheese slices|Dairy'),
+ M('Lemon garlic shrimp pasta','d',20,3,30,'shrimp','italian',['stove'],['shellfish','gluten','dairy'],['spinach','tomatoes'],'pasta',['savory'],'Frozen shrimp|Frozen;Protein pasta|Pantry;Spinach|Produce;Cherry tomatoes|Produce;Parmesan|Dairy;Lemons|Produce'),
+ M('Chicken fajita sheet pan','d',25,2,33,'chicken','mexican',['oven'],['gluten'],['peppers','onions'],'tortillas',['savory','spicy','prep'],'Chicken breasts|Meat;Bell peppers|Produce;Onions|Produce;Tortillas|Bakery;Fajita seasoning|Pantry')
 ];
-const SNACKS=[['Apple + peanut butter',[['Apples','Produce'],['Peanut butter','Pantry']]],['String cheese + almonds',[['String cheese','Dairy'],['Almonds','Pantry']]],['Protein bar',[['Protein bars','Pantry']]],['Hard-boiled eggs',[['Eggs (dozen)','Dairy']]],['Cottage cheese + pineapple',[['Cottage cheese','Dairy'],['Pineapple cups','Produce']]],['Hummus + carrots',[['Hummus','Deli'],['Baby carrots','Produce']]],['Chocolate milk',[['Chocolate milk','Dairy']]]];
-const FAST=[['Chick-fil-A','Grilled nuggets (12) + fruit cup + side salad'],['Chipotle','Chicken bowl: rice, beans, fajita veggies, salsa'],['Starbucks','Egg bites + banana, or a Protein Box'],['Panera','Half turkey sandwich + Greek salad'],['Subway','6" turkey or chicken on wheat, extra veggies'],['Taco Bell','Chicken Power Menu Bowl'],['Wendy\'s','Grilled chicken wrap + small chili'],['McDonald\'s','Egg McMuffin + apple slices + milk']];
+const SNACKS=[
+ {n:'Apple + peanut butter',t:['sweet'],al:['nuts'],it:[['Apples','Produce'],['Peanut butter','Pantry']]},
+ {n:'String cheese + almonds',t:['savory','grab'],al:['dairy','nuts'],it:[['String cheese','Dairy'],['Almonds','Pantry']]},
+ {n:'Protein bar',t:['sweet','grab'],al:['nuts','dairy','soy'],it:[['Protein bars','Pantry']]},
+ {n:'Hard-boiled eggs + everything seasoning',t:['savory','grab'],al:['egg'],it:[['Eggs (dozen)','Dairy']]},
+ {n:'Cottage cheese + pineapple',t:['sweet'],al:['dairy'],it:[['Cottage cheese','Dairy'],['Pineapple cups','Produce']]},
+ {n:'Hummus + carrots',t:['savory'],al:['sesame'],it:[['Hummus','Deli'],['Baby carrots','Produce']]},
+ {n:'Chocolate milk',t:['sweet','grab'],al:['dairy'],it:[['Chocolate milk','Dairy']]},
+ {n:'Turkey jerky + grapes',t:['savory','grab'],al:['soy'],it:[['Turkey jerky','Pantry'],['Grapes','Produce']]},
+ {n:'Greek yogurt + honey',t:['sweet'],al:['dairy'],it:[['Greek yogurt (big tub)','Dairy'],['Honey','Pantry']]},
+ {n:'Roasted edamame',t:['savory','grab'],al:['soy'],it:[['Roasted edamame','Pantry']]},
+ {n:'Trail mix + banana',t:['sweet','grab'],al:['nuts'],it:[['Trail mix','Pantry'],['Bananas','Produce']]}
+];
+const FAST=[['Chick-fil-A','Grilled nuggets (12) + fruit cup + side salad','american'],['Chipotle','Chicken bowl: rice, beans, fajita veggies, salsa','mexican'],['Starbucks','Egg bites + banana, or a Protein Box','american'],['Panera','Half turkey sandwich + Greek salad','mediterranean'],['Subway','6" turkey or chicken on wheat, extra veggies','american'],['Taco Bell','Chicken Power Menu Bowl','mexican'],['Wendy\'s','Grilled chicken wrap + small chili','american'],['McDonald\'s','Egg McMuffin + apple slices + milk','american'],['CAVA','Chicken + rice bowl with veggies & hummus','mediterranean'],['Pei Wei / P.F. Chang\'s','Chicken lettuce wraps or teriyaki chicken bowl','asian']];
 function vMeals(){
- const M=S.meals;
+ const M=S.meals;M.got=M.got||{};
  if(!M.plan)return `<div class="card"><h2>Meals for the week</h2><p class="sub">A quick quiz and I'll make a protein-forward, student-friendly plan plus a grocery list. The goal is fueling enough to build muscle and feel energized.</p><button class="btn" data-act="mealQuiz">Plan my meals</button></div>`+fastCard();
  const dn=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],sel=window._md===undefined?(new Date().getDay()+6)%7:window._md,d=M.plan[sel];
  const groc=grocery(),secs=[...new Set(groc.map(g=>g[1]))];
+ const snackName=typeof d.s==='string'?d.s:d.s.n;
  return `<div class="card"><div class="row" style="justify-content:space-between"><h2>Meal plan</h2><button class="btn sm ghost" data-act="mealQuiz">Redo quiz</button></div>
  <div class="tabs">${dn.map((n,i)=>`<button class="${i===sel?'on':''}" data-md="${i}">${n}</button>`).join('')}</div>
- ${[['Breakfast',d.b],['Lunch',d.l],['Dinner',d.d]].map(([l,m])=>`<div class="meal"><small>${l} · ${m.min} min · ~${m.pro} g protein</small>${m.n}</div>`).join('')}
- <div class="meal"><small>Snack</small>${d.s}</div><p class="sub">≈ ${d.b.pro+d.l.pro+d.d.pro+8} g protein. Dinner makes tomorrow's lunch on alternate days.</p></div>
+ ${[['Breakfast',d.b],['Lunch',d.l],['Dinner',d.d]].map(([l,m])=>`<div class="meal"><small>${l} · ${m.out?'eating out':m.left?'leftovers':m.min+' min'} · ~${m.pro} g protein</small>${m.n}</div>`).join('')}
+ <div class="meal"><small>Snack</small>${snackName}</div><p class="sub">≈ ${d.b.pro+d.l.pro+d.d.pro+8} g protein.${M.prefs&&M.prefs.prep==='yes'?' Cook dinner once, eat it again the next day.':''}</p></div>
  <div class="card groc"><h2>Grocery list</h2>${secs.map(s=>`<h3>${s}</h3>`+groc.filter(g=>g[1]===s).map(g=>`<label class="${M.got[g[0]]?'got':''}"><input type="checkbox" data-groc="${g[0]}" ${M.got[g[0]]?'checked':''}><span>${g[0]}</span></label>`).join('')).join('')}</div>`+fastCard();
 }
 function fastCard(){return `<div class="card"><h2>Better fast-food orders</h2><p class="sub">For the days it's that or nothing — eating something always beats skipping.</p>${FAST.map(f=>`<div class="meal"><small>${f[0]}</small>${f[1]}</div>`).join('')}</div>`}
-function grocery(){const map={};S.meals.plan.forEach(d=>{[d.b,d.l,d.d].forEach(m=>m.it.forEach(i=>map[i[0]]=i[1]));(SNACKS.find(s=>s[0]===d.s)||[0,[]])[1].forEach(i=>map[i[0]]=i[1])});
+function grocery(){const map={};S.meals.plan.forEach(d=>{[d.b,d.l,d.d].forEach(m=>(m.it||[]).forEach(i=>map[i[0]]=i[1]));
+  const sn=typeof d.s==='string'?SNACKS.find(s=>s.n===d.s):d.s;(sn&&sn.it||[]).forEach(i=>map[i[0]]=i[1])});
  const order=['Produce','Meat','Deli','Dairy','Bakery','Frozen','Pantry'];return Object.entries(map).sort((a,b)=>order.indexOf(a[1])-order.indexOf(b[1])||a[0].localeCompare(b[0]))}
-function mealQuiz(){window._mq={taste:[],time:20,budget:2,no:[]};mealQ()}
-function mealQ(){const q=window._mq,tog=(k,v,l)=>`<button class="opt ${q[k].includes(v)?'on':''}" data-mqm="${k}" data-v="${v}">${l}</button>`,one=(k,v,l)=>`<button class="opt ${q[k]==v?'on':''}" data-mq1="${k}" data-v="${v}">${l}</button>`;
- openSheet(`<button class="x" data-act="close">×</button><h2>Meal quiz</h2>
- <h3>Flavors you love</h3><div class="opts">${tog('taste','sweet','Sweet breakfasts')}${tog('taste','savory','Savory')}${tog('taste','spicy','Spicy / Mexican')}</div>
- <h3>Max cooking time</h3><div class="opts">${one('time',10,'≤10 min')}${one('time',20,'≤20 min')}${one('time',30,'≤30 min')}</div>
- <h3>Budget</h3><div class="opts">${one('budget',1,'$ Tight')}${one('budget',2,'$$ Moderate')}${one('budget',3,'$$$ Flexible')}</div>
- <h3>Skip these</h3><div class="opts">${tog('no','fish','Seafood')}${tog('no','meat','Meat (vegetarian)')}${tog('no','spicy','Spicy')}</div>
+const MQ_DEF={proteins:[],seafood:'yes',cuisine:[],vegLike:[],vegNo:[],bfast:'sweet',carbs:[],snack:[],out:2,prep:'some',eq:['micro','stove','oven'],allergy:[],time:20,budget:2};
+function mealQuiz(){const p=S.meals.prefs;window._mq=Object.assign(JSON.parse(JSON.stringify(MQ_DEF)),p&&p.proteins?JSON.parse(JSON.stringify(p)):{});mealQ()}
+function mealQ(){const q=window._mq;
+ const tog=(k,v,l)=>`<button class="opt ${q[k].includes(v)?'on':''}" data-mqm="${k}" data-v="${v}">${l}</button>`,one=(k,v,l)=>`<button class="opt ${q[k]==v?'on':''}" data-mq1="${k}" data-v="${v}">${l}</button>`;
+ const sec=(t,h,s)=>`<h3>${t}</h3>${s?`<p class="sub" style="margin:0">${s}</p>`:''}<div class="opts">${h}</div>`;
+ const VEG=[['broccoli','Broccoli'],['spinach','Spinach'],['peppers','Bell peppers'],['carrots','Carrots'],['cucumber','Cucumber'],['tomatoes','Tomatoes'],['lettuce','Lettuce'],['greenbeans','Green beans'],['onions','Onions'],['avocado','Avocado'],['berries','Berries']];
+ openSheet(`<button class="x" data-act="close">×</button><h2>Meal quiz</h2><p class="sub">Tap everything that fits — about 2 minutes.</p>
+ ${sec('Proteins you like',[['chicken','Chicken'],['turkey','Turkey'],['beef','Beef'],['pork','Pork'],['salmon','Salmon'],['shrimp','Shrimp'],['tuna','Tuna'],['eggs','Eggs'],['tofu','Tofu'],['yogurt','Greek yogurt / cottage cheese'],['beans','Beans']].map(o=>tog('proteins',...o)).join(''),'Pick as many as you like')}
+ ${sec('Seafood?',one('seafood','yes','Yes, love it')+one('seafood','no','No seafood'))}
+ ${sec('Favorite cuisines',[['american','American'],['mexican','Mexican'],['italian','Italian'],['asian','Asian'],['mediterranean','Mediterranean']].map(o=>tog('cuisine',...o)).join(''))}
+ ${sec('Veggies you like',VEG.map(o=>tog('vegLike',...o)).join(''))}
+ ${sec('Veggies to avoid',VEG.map(o=>tog('vegNo',...o)).join(''))}
+ ${sec('Breakfast style',[['sweet','Sweet'],['savory','Savory & hot'],['grab','Grab-and-go'],['smoothie','Smoothie']].map(o=>one('bfast',...o)).join(''))}
+ ${sec('Carbs you enjoy',[['rice','Rice'],['pasta','Pasta'],['potatoes','Potatoes'],['tortillas','Tortillas'],['bread','Bread'],['quinoa','Quinoa'],['oats','Oats']].map(o=>tog('carbs',...o)).join(''))}
+ ${sec('Snacks you reach for',[['sweet','Sweet'],['savory','Savory'],['grab','On-the-go']].map(o=>tog('snack',...o)).join(''))}
+ ${sec('Meals eaten out per week',[[0,'0'],[2,'1-2'],[4,'3-4'],[6,'5+']].map(o=>one('out',...o)).join(''))}
+ ${sec('Do you meal-prep?',[['yes','Yes, batch cook'],['some','Sometimes'],['no','No, cook fresh']].map(o=>one('prep',...o)).join(''))}
+ ${sec('Kitchen equipment',[['micro','Microwave'],['stove','Stovetop'],['oven','Oven'],['airfryer','Air fryer'],['blender','Blender'],['slowcooker','Slow cooker / Instant Pot']].map(o=>tog('eq',...o)).join(''))}
+ ${sec('Allergies / avoid',[['dairy','Dairy'],['gluten','Gluten'],['egg','Eggs'],['nuts','Nuts'],['soy','Soy'],['fish','Fish'],['shellfish','Shellfish'],['sesame','Sesame']].map(o=>tog('allergy',...o)).join(''))}
+ ${sec('Max cooking time',one('time',10,'≤10 min')+one('time',20,'≤20 min')+one('time',30,'≤30 min')+one('time',45,'Longer is OK'))}
+ ${sec('Budget',one('budget',1,'$ Tight')+one('budget',2,'$$ Moderate')+one('budget',3,'$$$ Flexible'))}
  <button class="btn" data-act="mealMake">Make my plan</button>`)}
-function mealMake(){const q=window._mq;
- const allowed=m=>!q.no.some(t=>t==='meat'?!m.tags.includes('veg'):m.tags.includes(t));
- const score=m=>q.taste.filter(t=>m.tags.includes(t)).length;
- const pool=t=>{let p=MEALS.filter(m=>m.m===t&&allowed(m)&&m.min<=q.time&&m.c<=q.budget);if(p.length<2)p=MEALS.filter(m=>m.m===t&&allowed(m));if(!p.length)p=MEALS.filter(m=>m.m===t);return p.sort((a,b)=>score(b)-score(a))};
- const B=pool('b'),L=pool('l'),D=pool('d'),plan=[];
- for(let i=0;i<7;i++){plan.push({b:B[i%Math.min(B.length,3)],l:i%2?plan[i-1].d:L[(i/2|0)%L.length],d:D[i%D.length],s:SNACKS[i%SNACKS.length][0]})}
+function mealMake(){const q=window._mq,SEA=['salmon','shrimp','tuna'];
+ const al=m=>!m.al.some(a=>q.allergy.includes(a))&&!(m.p==='eggs'&&q.allergy.includes('egg'))&&!(m.p==='tofu'&&q.allergy.includes('soy'));
+ const protOK=m=>!(q.seafood==='no'&&SEA.includes(m.p))&&(!q.proteins.length||q.proteins.includes(m.p)||(m.p==='yogurt'||m.p==='beans')&&!q.proteins.length);
+ const eqOK=m=>!m.eq.length||m.eq.some(e=>q.eq.includes(e));
+ const vegOK=m=>!m.veg.some(v=>q.vegNo.includes(v));
+ const score=m=>(q.cuisine.includes(m.cu)?3:0)+m.veg.filter(v=>q.vegLike.includes(v)).length+(q.carbs.includes(m.carb)?2:0)+(q.proteins.includes(m.p)?2:0)+(m.m==='b'&&m.tags.includes(q.bfast)?4:0)+(q.prep==='yes'&&m.tags.includes('prep')?2:0)+((seedNum()*7+m.n.length)%3)*.1;
+ const pool=t=>{const base=MEALS.filter(m=>m.m===t&&al(m)&&q.seafood!=='no'||m.m===t&&al(m)&&!SEA.includes(m.p));
+  const tiers=[m=>protOK(m)&&eqOK(m)&&vegOK(m)&&m.min<=q.time&&m.c<=q.budget,m=>protOK(m)&&eqOK(m)&&vegOK(m),m=>protOK(m)&&eqOK(m),m=>eqOK(m),()=>true];
+  for(const f of tiers){const p=base.filter(f);if(p.length>=(t==='b'?2:3))return p.sort((a,b)=>score(b)-score(a))}
+  return (base.length?base:MEALS.filter(m=>m.m===t)).sort((a,b)=>score(b)-score(a))};
+ const B=pool('b'),L=pool('l'),D=pool('d');
+ let SN=SNACKS.filter(s=>!s.al.some(a=>q.allergy.includes(a)));if(!SN.length)SN=SNACKS;
+ if(q.snack.length){const f=SN.filter(s=>s.t.some(t=>q.snack.includes(t)));if(f.length)SN=f}
+ const plan=[];let di=0;
+ for(let i=0;i<7;i++){
+  let d;if(q.prep==='yes'){d=D[Math.floor(i/2)%D.length]}else{d=D[di++%D.length]}
+  let l;if(q.prep!=='no'&&i>0&&plan[i-1].d&&!plan[i-1].d.out&&(q.prep==='yes'||i%2)){l=Object.assign({},plan[i-1].d,{n:'Leftover '+plan[i-1].d.n.charAt(0).toLowerCase()+plan[i-1].d.n.slice(1),left:1,it:[]})}else l=L[i%L.length];
+  plan.push({b:B[i%Math.min(B.length,q.bfast==='grab'||q.bfast==='smoothie'?2:3)],l,d,s:SN[i%SN.length]});
+ }
+ // eating out: replace lunches/dinners on busiest days
+ const slots=[[1,'l'],[3,'l'],[4,'d'],[5,'d'],[0,'l'],[2,'l'],[6,'l']];
+ let FF=FAST.filter(f=>q.cuisine.includes(f[2]));if(FF.length<2)FF=FAST;
+ for(let k=0;k<Math.min(q.out,slots.length);k++){const [i,t]=slots[k],f=FF[k%FF.length];plan[i][t]={n:f[0]+': '+f[1],m:t,min:0,pro:30,out:1,it:[]};
+  if(t==='d'&&i<6&&plan[i+1].l.left)plan[i+1].l=L[(i+1)%L.length]}
  S.meals={prefs:q,plan,got:{}};save();closeSheet();window._md=undefined;go('meals')}
-
 function lastDays(n){const a=[];for(let i=n-1;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);a.push([dkey(d),S.days[dkey(d)]])}return a}
 function streak(){let s=0;for(let i=0;i<400;i++){const d=new Date();d.setDate(d.getDate()-i);const x=S.days[dkey(d)];const n=x&&x.done?Object.keys(x.done).length:0;if(n>=3)s++;else if(i>0)break}return s}
 function chart(series,max,labels){const W=320,H=120,n=labels.length,X=i=>n>1?i*(W-20)/(n-1)+10:W/2;let s=`<svg viewBox="0 0 ${W} ${H+18}" style="width:100%">`;
@@ -418,9 +519,10 @@ function vTrack(){
  const wts=Object.entries(S.days).filter(([,x])=>x.weight).slice(-10);
  const done=L.reduce((a,[,x])=>a+(x&&x.done?Object.keys(x.done).length:0),0);
  return `<div class="card"><div class="grid"><div><div class="sub">Streak</div><h1>${st} day${st===1?'':'s'}</h1></div><div><div class="sub">Goals done (7 days)</div><h1>${done}</h1></div></div><p class="sub">A streak day = 3+ goals checked off.</p></div>
- <div class="card"><h3>Weekly summary</h3><p>${s.w} strength · ${s.o} Orangetheory · ${s.walk} walking min · ${s.rest} mobility. ${s.w+s.o>=3?'You\'re building real consistency.':'Every small session counts. Keep showing up.'}</p></div>
+ <div class="card"><h3>Weekly summary</h3><p>${s.w} strength · ${s.o} Orangetheory · ${s.walk} walking min (${s.dog} dog walks) · ${s.rest} mobility. ${s.w+s.o>=3?'You\'re building real consistency.':'Every small session counts. Keep showing up.'}</p></div>
  <div class="card"><h3>Energy, mood &amp; skin</h3><div class="row sub" style="gap:14px"><span style="color:#b9786a">● Energy</span><span style="color:#8fa585">● Mood</span><span style="color:#d9a99b">● Skin</span></div>${chart([[ci('energy'),'#b9786a'],[ci('mood'),'#8fa585'],[ci('skin').map(v=>v==null?null:v*4/3),'#d9a99b']],4,lab)}</div>
  <div class="card"><h3>Water (oz)</h3>${bars(L.map(([,x])=>x?x.water:0),96,lab,'#c9b6d6')}<h3>Steps</h3>${bars(L.map(([,x])=>x?x.steps||0:0),8000,lab,'#e9c9bf')}</div>
+ <div class="card"><h3>Dog walks</h3><p class="sub">Log a walk with your pup (counts toward weekly walking). This week: ${s.dog} walk${s.dog===1?'':'s'}.</p><div class="opts">${[10,20,30,45].map(m=>`<button class="opt" data-dog="${m}">+ ${m} min</button>`).join('')}</div>${(x.dogWalks||[]).length?`<p class="sub">Today: ${x.dogWalks.map(w=>w.min+' min').join(', ')}</p>`:''}</div>
  <div class="card"><h3>Workout log</h3>${allW.length?allW.map(w=>`<div class="meal"><small>${w[0]}</small>${w[1]}</div>`).join(''):'<p class="sub">Finish a workout and it shows up here.</p>'}</div>
  <div class="card"><h3>Optional body check-in</h3><p class="sub">Totally optional. Strength and energy are the real wins; the scale may barely move as you build muscle.</p>
  <div class="row"><input type="number" step="0.1" id="wtIn" placeholder="Weight (lb)" value="${x.weight||''}"><input type="text" id="msIn" placeholder="Measurements / notes" value="${x.meas||''}"></div><button class="btn ghost" style="margin-top:8px" data-act="saveBody">Save</button>
@@ -435,16 +537,19 @@ document.addEventListener('click',e=>{
  if(ds.tab)return go(ds.tab);
  if(ds.goal){const x=day();if(x.done[ds.goal])delete x.done[ds.goal];else x.done[ds.goal]=1;save();return render()}
  if(ds.water){const x=day();x.water=Math.max(0,x.water+ +ds.water);const g=x.goals&&x.goals.find(g=>g.id==='water');if(g&&x.water>=g.oz)x.done.water=1;save();return render()}
- if(ds.open){if(ds.open==='gym')return gymSheet();return startWorkout(ds.open.slice(2))}
+ if(ds.open){if(ds.open==='gym')return gymSheet();if(ds.open==='walk'){const x=day(),g=x.goals.find(g=>g.id==='walk');g.kind=g.kind==='dog'?'pad':'dog';walkText(g);save();return render()}return startWorkout(ds.open.slice(2))}
  if(ds.move)return moveSheet(ds.move);
  if(ds.mf){mfilter=ds.mf;return render()}
  if(ds.md!==undefined){window._md=+ds.md;return render()}
  if(ds.groc){S.meals.got[ds.groc]=b.checked;save();return render()}
- if(ds.q){Q[ds.q]=+ds.v;return quiz(+ds.i+1)}
+ const val=v=>isNaN(v)?v:+v;
+ if(ds.q){Q[ds.q]=val(ds.v);return quiz(+ds.i+1)}
+ if(ds.qm){const a=Q[ds.qm]=Q[ds.qm]||[],v=val(ds.v);const solo=['none'];if(solo.includes(v)){Q[ds.qm]=a.includes(v)?[]:[v]}else{const i=a.indexOf(v);if(i<0)a.push(v);else a.splice(i,1);Q[ds.qm]=a.filter(x=>!solo.includes(x))}return quiz(+ds.i)}
+ if(ds.dog){const x=day();x.dogWalks=x.dogWalks||[];x.dogWalks.push({min:+ds.dog,at:Date.now()});const g=x.goals&&x.goals.find(g=>g.id==='walk');if(g&&g.kind==='dog'&&x.dogWalks.reduce((a,w)=>a+w.min,0)>=g.min)x.done.walk=1;save();return render()}
  if(ds.pk){window._p[ds.pk]=+ds.v;b.parentNode.querySelectorAll('.opt').forEach(o=>o.classList.toggle('on',o===b));return}
- if(ds.mqm){const a=window._mq[ds.mqm],i=a.indexOf(ds.v);if(i<0)a.push(ds.v);else a.splice(i,1);return mealQ()}
- if(ds.mq1){window._mq[ds.mq1]=+ds.v;return mealQ()}
- const A={close:closeSheet,quiz:()=>quiz(0),planEdit,mealQuiz,mealMake,
+ if(ds.mqm){const a=window._mq[ds.mqm],v=val(ds.v),i=a.indexOf(v);if(i<0)a.push(v);else a.splice(i,1);b.classList.toggle('on',i<0);return}
+ if(ds.mq1){window._mq[ds.mq1]=val(ds.v);b.parentNode.querySelectorAll('.opt').forEach(o=>o.classList.toggle('on',o===b));return}
+ const A={qNext:()=>quiz(+ds.i+1),close:closeSheet,quiz:()=>quiz(0),planEdit,mealQuiz,mealMake,
   planSave:()=>{S.weeks[wkey()]=window._p;save();closeSheet();render()},
   saveSteps:()=>{const x=day();x.steps=+$('#stepsIn').value||0;const g=x.goals&&x.goals.find(g=>g.id==='steps');if(g&&x.steps>=g.steps)x.done.steps=1;save();render()},
   saveBody:()=>{const x=day();x.weight=+$('#wtIn').value||undefined;x.meas=$('#msIn').value;save();render()},
