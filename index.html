@@ -132,6 +132,23 @@ input:focus,select:focus{outline:2px solid var(--blush)}
 .toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#3d3230;color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;z-index:50;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
 .toast.on{opacity:1}
 .empty{color:var(--soft);text-align:center;padding:20px}
+.player{overflow-y:auto;-webkit-overflow-scrolling:touch}
+.pfigrow{display:flex;gap:10px;align-items:center;margin:10px 0 4px}
+.pfig{flex:1 1 auto;min-width:0;background:#fffaf8;border-radius:22px;padding:2px;cursor:pointer}
+.pfig svg,.gfig svg,.gthumb svg,.thumb svg{width:100%;height:auto;display:block}
+.pring.sm{width:36%;height:auto;aspect-ratio:1/1;margin:0;flex:none}
+.pring.sm .t{font-size:46px}
+.pname{font-size:26px}
+.howbtn{display:block;margin:6px auto 0;background:rgba(255,255,255,.18);color:#fff;border-radius:999px;padding:9px 16px;font-size:14px;font-weight:600;min-height:40px}
+.phow{background:rgba(255,255,255,.12);border-radius:16px;padding:10px 14px;margin-top:8px;font-size:15px}
+.guide .hk{font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-top:10px;opacity:.85}
+.guide p{margin:4px 0}.guide ol,.guide ul{margin:4px 0;padding-left:20px}.guide li{margin:3px 0}
+.sheet .guide .hk{color:var(--deep)}
+.gfig{background:#fffaf8;border:1px solid var(--line);border-radius:20px;padding:4px;max-width:270px;margin:8px auto}
+.gthumb{background:#fffaf8;border:1px solid var(--line);border-radius:14px;padding:2px;text-align:center;font-size:12px;color:var(--soft)}
+.gthumb span{display:block;margin:-4px 0 4px}
+.thumb{width:56px;flex:none;background:#fffaf8;border-radius:12px;border:1px solid var(--line)}
+button.slot{width:100%;background:none;text-align:left;font:inherit;color:inherit}
 
 </style></head><body>
 <div id="app"></div>
@@ -367,7 +384,523 @@ var R=[
 ["st6","Hips & Back Release","stretch","Deep hip openers and back release.",5,[["pigeonL",50,"hold"],["pigeonR",50,"hold"],["frogSt",40,"hold"],["catcow",40,"flow"],["child",40,"rest"]]],
 ["st7","Full Body Lengthen","stretch","Side bends, twists and folds.",5,[["sideBendL",30,"hold"],["sideBendR",30,"hold"],["fold",40,"hang"],["dog",40,"pedal"],["cobra",30,"hold"],["supL",35,"hold"],["supR",35,"hold"]]]
 ];
-function presetWorkouts(){var o={};R.forEach(function(r){o[r[0]]={id:r[0],name:r[1],cat:r[2],desc:r[3],rest:r[4],fit:true,rounds:2,preset:true,ex:r[5].map(function(e){var d=X[e[0]];return {name:d[0],secs:e[1],reps:e[2],wt:d[1],cue:d[2]};})};});return o;}
+function presetWorkouts(){var o={};R.forEach(function(r){o[r[0]]={id:r[0],name:r[1],cat:r[2],desc:r[3],rest:r[4],fit:true,rounds:2,preset:true,ex:r[5].map(function(e){var d=X[e[0]];return {k:e[0],name:d[0],secs:e[1],reps:e[2],wt:d[1],cue:d[2]};})};});return o;}
+
+// ---------- Stick-figure engine (inline SVG, no images) ----------
+// Angles: 0 = straight down, 90 = forward (screen right), 180 = up, -90 = back (screen left).
+var FLOOR=96,SEG={t:34,ua:17,fa:16,th:22,sh:21,ft:6,neck:3,hr:7};
+function dirv(a){a=a*Math.PI/180;return [Math.sin(a),Math.cos(a)]}
+function addv(p,a,len){var d=dirv(a);return [p[0]+d[0]*len,p[1]+d[1]*len]}
+function lerpA(a,b,k){var d=((b-a)%360+540)%360-180;return a+d*k}
+function mixPose(A,B,k){if(!B||k<=0)return A;if(k>=1)return B;var o={};for(var key in A)o[key]=A[key];
+  ["t","h","ax","ay"].forEach(function(f){if(A[f]!=null&&B[f]!=null)o[f]=(f==="t"||f==="h")?lerpA(A[f],B[f],k):A[f]+(B[f]-A[f])*k});
+  ["a","l","f"].forEach(function(f){if(A[f]&&B[f])o[f]=A[f].map(function(v,i){return lerpA(v,B[f][i],k)})});return o}
+function solve(P){
+  var sc=P.sc||{},L=function(n){return SEG[n]*(sc[n]||1)},front=P.v==="f",t=P.t==null?180:P.t,a=P.a||[0,0,0,0],l=P.l||[0,0,0,0];
+  var hip=[0,0],sh=addv(hip,t,L("t")),hd=addv(sh,t+(P.h||0),SEG.neck+SEG.hr);
+  var ox=front?9:0,hx=front?6:0;
+  var s1=[sh[0]-ox,sh[1]],s2=[sh[0]+ox,sh[1]],h1=[hip[0]-hx,hip[1]],h2=[hip[0]+hx,hip[1]];
+  if(front&&t!==180){var nx=[Math.cos((t-180)*Math.PI/180),-Math.sin((t-180)*Math.PI/180)];s1=[sh[0]-nx[0]*ox,sh[1]-nx[1]*ox];s2=[sh[0]+nx[0]*ox,sh[1]+nx[1]*ox];h1=[hip[0]-nx[0]*hx,hip[1]-nx[1]*hx];h2=[hip[0]+nx[0]*hx,hip[1]+nx[1]*hx]}
+  var e1=addv(s1,a[0],L("ua")),w1=addv(e1,a[1],L("fa")),e2=addv(s2,a[2],L("ua")),w2=addv(e2,a[3],L("fa"));
+  var k1=addv(h1,l[0],L("th")),a1=addv(k1,l[1],L("sh")),k2=addv(h2,l[2],L("th")),a2=addv(k2,l[3],L("sh"));
+  var f=P.f||[front?(l[1]-60):(l[1]+90),front?(l[3]+60):(l[3]+90)];
+  var t1=addv(a1,f[0],front?3.5:SEG.ft),t2=addv(a2,f[1],front?3.5:SEG.ft);
+  var J={hip:hip,sh:sh,hd:hd,s1:s1,s2:s2,h1:h1,h2:h2,e1:e1,w1:w1,e2:e2,w2:w2,k1:k1,a1:a1,k2:k2,a2:a2,t1:t1,t2:t2};
+  // place: anchor joint at ax (and ay if given); else lowest point on floor
+  var an=J[P.an||(front?"hip":"a1")],dx=(P.ax==null?60:P.ax)-an[0],dy;
+  if(P.ay!=null)dy=P.ay-an[1];else{var my=-1e9;["hip","sh","e1","w1","e2","w2","k1","a1","k2","a2","t1","t2"].forEach(function(n){if(J[n][1]>my)my=J[n][1]});my=Math.max(my,J.hd[1]+SEG.hr);dy=FLOOR-my-0.5}
+  for(var n in J)J[n]=[J[n][0]+dx,J[n][1]+dy];return J;
+}
+function pth(pts){return "M"+pts.map(function(p){return p[0].toFixed(1)+" "+p[1].toFixed(1)}).join("L")}
+function figBody(P,J){
+  J=J||solve(P);var front=P.v==="f",C1="#8a5248",C2=front?"#8a5248":"#d6aea3",o="";
+  var limb=function(pts,c,w){return '<path d="'+pth(pts)+'" stroke="'+c+'" stroke-width="'+(w||5)+'" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'};
+  var db=function(w,e){var d=dirv(Math.atan2(w[0]-e[0],w[1]-e[1])*180/Math.PI+90),x=w[0],y=w[1];return '<path d="M'+(x-d[0]*5).toFixed(1)+' '+(y-d[1]*5).toFixed(1)+'L'+(x+d[0]*5).toFixed(1)+' '+(y+d[1]*5).toFixed(1)+'" stroke="#5d4a47" stroke-width="3.2"/><circle cx="'+(x-d[0]*5).toFixed(1)+'" cy="'+(y-d[1]*5).toFixed(1)+'" r="3.1" fill="#5d4a47"/><circle cx="'+(x+d[0]*5).toFixed(1)+'" cy="'+(y+d[1]*5).toFixed(1)+'" r="3.1" fill="#5d4a47"/>'};
+  // far side first
+  o+=limb([J.h2,J.k2,J.a2,J.t2],C2);o+=limb([J.s2,J.e2,J.w2],C2);
+  if(P.db===1||P.db===2)o+=db(J.w2,J.e2);
+  o+=limb(front?[J.s1,J.s2]:[J.sh,J.sh],C1,6);o+=limb(front?[J.h1,J.h2]:[J.hip,J.hip],C1,6);
+  o+=limb([J.hip,J.sh],C1,7);
+  o+='<circle cx="'+J.hd[0].toFixed(1)+'" cy="'+J.hd[1].toFixed(1)+'" r="'+SEG.hr+'" fill="#e9c9bf" stroke="'+C1+'" stroke-width="2.5"/>';
+  o+=limb([J.h1,J.k1,J.a1,J.t1],C1);o+=limb([J.s1,J.e1,J.w1],C1);
+  if(P.db===1||P.db===3)o+=db(J.w1,J.e1);
+  if(P.db===4){var m=[(J.w1[0]+J.w2[0])/2,(J.w1[1]+J.w2[1])/2];o+=db([m[0],m[1]],[m[0],m[1]-5])}
+  return o;
+}
+function figProps(pr,J){var o='<rect x="6" y="96" width="108" height="3.5" rx="1.7" fill="#f0dcd4"/>';if(!pr)return o;
+  if(pr.chair!=null)o+='<path d="M'+pr.chair+' '+(pr.cy||66)+'h22M'+(pr.chair+2)+' '+(pr.cy||66)+'V96M'+(pr.chair+20)+' '+(pr.cy||66)+'V96" stroke="#c9b3ab" stroke-width="3" fill="none" stroke-linecap="round"/>';
+  if(pr.barre&&J){var h=J[pr.barre];o+='<path d="M'+(h[0]+1).toFixed(1)+' '+(h[1]+2).toFixed(1)+'V96M'+(h[0]-5).toFixed(1)+' '+(h[1]+2).toFixed(1)+'h12" stroke="#c9b3ab" stroke-width="3" stroke-linecap="round" fill="none"/>'}
+  if(pr.wall!=null)o+='<path d="M'+pr.wall+' 10V96" stroke="#c9b3ab" stroke-width="3" stroke-linecap="round"/>';
+  return o}
+function figSVG(F,k,cls){
+  if(!F)return genericSVG(cls);var P=mixPose(F[0],F[1]||F[0],k||0);
+  var J=solve(P);return '<svg class="'+(cls||"fig")+'" viewBox="0 -16 120 116" aria-hidden="true">'+figProps(F[2],J)+'<g>'+figBody(P,J)+'</g></svg>';
+}
+function genericSVG(cls){return '<svg class="'+(cls||"fig")+'" viewBox="0 -16 120 116" aria-hidden="true">'+figProps()+'<g>'+figBody({t:180,a:[25,150,-25,-150],l:[-8,0,8,0],v:"f"})+'</g><text x="96" y="30" font-family="Georgia" font-size="22" fill="#b9786a">?</text></svg>'}
+
+// ---------- Exercise guide: figures + form cues ----------
+// f:[poseA,poseB,props]  tg: what to feel  s: steps  m: mistakes  e: easier  h: harder
+var SUPA=[90,90,90,90],SUPL=[140,35,140,35],PL_A={t:115,a:[0,0,0,0],l:[-65,-65,-65,-65],f:[-150,-150],an:"w1",ax:82,ay:96};
+var HAND_HIP_F=[-35,35,35,-35],PRAY_F=[-30,150,30,-150];
+var G={
+plie:{f:[{v:"f",a:PRAY_F,l:[-45,-12,45,12]},{v:"f",a:PRAY_F,l:[-68,-8,68,8]}],tg:"Inner thighs, glutes and quads",
+ s:["Stand wide with heels in and toes turned out.","Keep your chest tall and tailbone pointing down.","Bend your knees out over your toes and sink low.","Pulse an inch up and down without standing up."],
+ m:["Knees falling in past your toes","Leaning forward or sticking your bottom out"],e:"Bigger, slower reps with a smaller bend",h:"Hold a dumbbell at your chest or rise onto your toes"},
+plieRel:{f:[{v:"f",a:PRAY_F,l:[-68,-8,68,8]},{v:"f",a:[-150,-160,150,160],l:[-28,-6,28,6],f:[-10,10]}],tg:"Inner thighs, glutes and calves",
+ s:["Start in a wide plié with toes turned out.","Lower down, keeping knees over toes.","As you stand, press up onto the balls of your feet.","Lower your heels slowly, then go into the next plié."],
+ m:["Rolling onto the outer edges of your feet","Rushing the heel lower"],e:"Skip the heel raise",h:"Stay on your toes for the whole set"},
+plieW:{f:[{v:"f",a:[12,0,-12,0],l:[-45,-12,45,12],db:4},{v:"f",a:[12,0,-12,0],l:[-68,-8,68,8],db:4}],tg:"Inner thighs, glutes and quads",
+ s:["Stand wide, toes out, holding one dumbbell by the end between your legs.","Keep your arms long and chest up.","Sink straight down, knees tracking over toes.","Press through your heels to stand and squeeze your inner thighs."],
+ m:["Letting the weight pull your chest forward","Knees caving in"],e:"Use no weight",h:"Add a 2-second pause at the bottom"},
+releve:{f:[{a:[30,90,30,90]},{a:[30,90,30,90],f:[40,40]},{barre:"w1"}],tg:"Calves and ankles",
+ s:["Stand tall with heels together and toes slightly apart.","Hold a counter or chair lightly if you need balance.","Rise as high as you can onto the balls of your feet.","Lower your heels for 2 counts."],
+ m:["Sickling the ankles out","Bouncing instead of lowering slowly"],e:"Feet hip-width apart, hold on",h:"Hands off the support, or hold at the top"},
+chair:{f:[{t:152,a:[165,170,165,170],l:[62,-22,62,-22]},{t:147,a:[165,170,165,170],l:[74,-25,74,-25]}],tg:"Quads, glutes and core",
+ s:["Feet together or hip-width, arms reaching up.","Sit your hips back as if into a chair.","Keep weight in your heels and knees behind your toes.","Pulse down an inch and back up."],
+ m:["Knees shooting past your toes","Arching your low back"],e:"Hands on your thighs and a smaller bend",h:"Sink lower or rise onto your toes"},
+chairHold:{f:[{t:147,a:[165,170,165,170],l:[74,-25,74,-25]},{t:149,a:[168,172,168,172],l:[72,-24,72,-24]}],tg:"Quads and glutes",
+ s:["Sit back as if into a chair, arms up or forward.","Get your thighs as close to parallel as you can.","Keep your weight in your heels.","Breathe slowly and hold."],
+ m:["Holding your breath","Letting your knees drift in"],e:"Hold higher, or lean on a wall",h:"Hold a dumbbell at your chest"},
+curt:{f:[{a:[-30,60,-30,60]},{a:[-30,60,-30,60],l:[86,0,-10,-86],f:[90,-160]}],tg:"Glutes, outer hips and inner thighs",
+ s:["Stand tall with hands on your hips.","Step one leg back and across behind the other, like a curtsy.","Bend both knees and lower straight down.","Push through the front heel to stand."],
+ m:["Front knee caving in","Twisting your hips too far"],e:"Smaller step and shallower bend",h:"Hold dumbbells, or pulse at the bottom"},
+rev:{f:[{a:[5,0,5,0],db:1},{a:[5,0,5,0],l:[88,0,-12,-88],f:[90,-160],db:1}],tg:"Glutes, quads and hamstrings",
+ s:["Stand tall, a dumbbell in each hand.","Step one foot back and lower until both knees are near 90 degrees.","Keep your front knee over your ankle.","Drive through your front heel to stand."],
+ m:["Front knee past the toes","Leaning your chest way forward"],e:"No weights, hold a chair",h:"Pause at the bottom or add a pulse"},
+latl:{f:[{v:"f",a:PRAY_F,l:[-12,0,12,0]},{v:"f",t:186,a:PRAY_F,l:[-58,-6,58,58]}],tg:"Inner thighs, glutes and quads",
+ s:["Stand with feet together.","Take a big step to one side.","Sit your hips back into that side and keep the other leg straight.","Push off to return to center."],
+ m:["Bent knee caving in","Rounding your back"],e:"Smaller step, less depth",h:"Hold a dumbbell at your chest"},
+lungeP:{f:[{l:[70,-5,-22,-80],f:[90,-160]},{l:[88,0,-12,-88],f:[90,-160]}],tg:"Quads and glutes",
+ s:["Get into a split stance, back heel up.","Lower until both knees are bent.","Pulse an inch up and down.","Keep your chest tall the whole time."],
+ m:["Standing all the way up between pulses","Front knee drifting in"],e:"Hold a chair for balance",h:"Hold dumbbells"},
+squat:{f:[{a:[0,0,0,0]},{t:142,a:[85,85,85,85],l:[80,-25,80,-25]}],tg:"Quads and glutes",
+ s:["Feet shoulder-width, toes slightly out.","Push your hips back and bend your knees.","Lower until thighs are near parallel, chest up.","Press through your whole foot to stand."],
+ m:["Heels lifting","Knees caving in"],e:"Squat to a chair",h:"Add a pause or hold a dumbbell"},
+squatP:{f:[{t:142,a:[85,85,85,85],l:[80,-25,80,-25]},{t:150,a:[85,85,85,85],l:[66,-22,66,-22]}],tg:"Quads and glutes",
+ s:["Lower into a squat.","Stay low with your chest up.","Pulse up a few inches and back down.","Keep tension in your legs the whole time."],
+ m:["Standing up between pulses","Letting the chest drop"],e:"Smaller depth",h:"Hold a dumbbell at your chest"},
+sumo:{f:[{v:"f",a:[-15,165,15,-165],l:[-35,-10,35,10],db:4},{v:"f",a:[-15,165,15,-165],l:[-66,-6,66,6],db:4}],tg:"Inner thighs, glutes and quads",
+ s:["Stand wide with toes turned out.","Hold one dumbbell at your chest.","Sit down between your heels, knees pushing out.","Squeeze your glutes and inner thighs to stand."],
+ m:["Knees falling inward","Rounding your upper back"],e:"No weight",h:"Pause 2 seconds at the bottom"},
+sumoP:{f:[{v:"f",a:[-15,165,15,-165],l:[-55,-8,55,8],db:4},{v:"f",a:[-15,165,15,-165],l:[-68,-6,68,6],db:4}],tg:"Inner thighs and glutes",
+ s:["Get into a wide sumo squat with toes out.","Hold the weight at your chest.","Stay low and pulse up and down an inch.","Push your knees out the whole time."],
+ m:["Standing up too much","Knees caving in"],e:"No weight",h:"Rise onto your toes while you pulse"},
+goblet:{f:[{a:[15,165,15,165],db:4},{t:142,a:[15,165,15,165],l:[80,-25,80,-25],db:4}],tg:"Quads, glutes and core",
+ s:["Hold one dumbbell at your chest, elbows down.","Feet shoulder-width apart.","Lower for 3 slow counts, chest up.","Drive up through your heels."],
+ m:["Elbows flaring and chest dropping","Heels coming up"],e:"No weight",h:"Add a pulse at the bottom"},
+calf:{f:[{a:[5,0,5,0]},{a:[5,0,5,0],f:[40,40]}],tg:"Calves",
+ s:["Stand tall, hold a wall or chair if needed.","Rise as high as you can on your toes.","Pause at the top.","Lower slowly."],
+ m:["Bouncing","Only going halfway up"],e:"Hold on with both hands",h:"One leg at a time"},
+skater:{f:[{v:"f",t:192,a:[-30,10,60,80],l:[-20,-5,20,-60],f:[-60,-20]},{v:"f",t:168,a:[-60,-80,30,-10],l:[-20,60,20,5],f:[20,60]}],tg:"Outer hips, glutes and thighs; raises heart rate",
+ s:["Stand on one leg with a soft knee.","Step wide to the side and land softly on the other leg.","Let the back leg sweep behind you and reach across.","Keep it quiet and smooth. No jumping."],
+ m:["Landing stiff-legged","Knee caving in on landing"],e:"Smaller steps, tap the back foot down",h:"Lower and faster, or add a small hop if noise is ok"},
+knee:{f:[{a:[30,40,-40,40],l:[88,0,-12,-88],f:[90,-160]},{a:[-40,40,30,40],l:[0,0,95,0]}],tg:"Glutes, quads, balance and core",
+ s:["Step back into a reverse lunge.","Drive through your front heel to stand.","Bring the back knee up to hip height.","Balance a beat, then step back again."],
+ m:["Leaning back as the knee comes up","Rushing and losing balance"],e:"Tap the toe down instead of balancing",h:"Hold dumbbells or add a hop"},
+sideStep:{f:[{v:"f",a:PRAY_F,l:[-40,-12,40,12]},{v:"f",a:PRAY_F,l:[-20,-12,20,12]}],tg:"Outer hips, glutes and thighs",
+ s:["Sit into a low squat.","Step one foot out to the side, then bring the other in.","Stay low the whole time.","Take two steps each way."],
+ m:["Standing up between steps","Feet clicking together"],e:"Higher squat",h:"Lower squat, faster steps"},
+standSide:{f:[{v:"f",a:HAND_HIP_F,l:[-4,0,4,0]},{v:"f",a:HAND_HIP_F,l:[-4,0,45,45],f:[-60,100]}],tg:"Outer hips and glutes",
+ s:["Stand tall with hands on your hips or a chair.","Keep your toes facing forward.","Lift one leg out to the side without leaning.","Lower slowly."],
+ m:["Leaning the body sideways","Turning the toes up to the ceiling"],e:"Smaller lift",h:"Hold at the top or pulse"},
+gkick:{f:[{t:160,a:[70,110,70,110],l:[8,-4,-20,-20]},{t:160,a:[70,110,70,110],l:[8,-4,-62,-62],f:[-4,30]},{barre:"w1"}],tg:"Glutes",
+ s:["Hold a chair or counter, hinge forward a little.","Keep the standing knee soft.","Press one leg straight back and squeeze your glute.","Pulse it up and down a few inches."],
+ m:["Arching your low back to lift higher","Swinging the leg"],e:"Bigger, slower reps",h:"Hold the top and pulse smaller"},
+split:{f:[{a:[5,0,5,0],l:[22,-6,-25,-25],f:[90,-170],db:1},{a:[5,0,5,0],l:[86,0,-8,-88],f:[90,-160],db:1}],tg:"Quads and glutes",
+ s:["Stand in a long split stance, back heel up.","Hold a dumbbell in each hand.","Lower straight down until the back knee is near the floor.","Push through the front foot to rise."],
+ m:["Front knee drifting forward","Stance too short"],e:"No weights, hold a chair",h:"Slow 3-count lowering"},
+rdl:{f:[{a:[5,0,5,0],db:1},{t:98,a:[0,0,0,0],l:[14,-6,14,-6],db:1}],tg:"Hamstrings and glutes",
+ s:["Stand tall with dumbbells in front of your thighs.","Soften your knees and push your hips back.","Slide the weights down your legs, back flat.","Squeeze your glutes to stand up."],
+ m:["Rounding your back","Bending knees into a squat"],e:"Smaller range, lighter weight",h:"Slow 3-count lowering"},
+slRdl:{f:[{a:[5,0,5,0],l:[0,0,-12,-12],db:3},{t:96,a:[0,0,0,0],l:[10,-4,-82,-82],f:[90,-10],db:3}],tg:"Hamstrings, glutes and balance",
+ s:["Stand on one leg with a soft knee.","Hinge forward as the other leg reaches back.","Keep hips level and back flat.","Return to standing with control."],
+ m:["Hip of the lifted leg opening up","Rounding the back"],e:"Lightly tap the back toe down",h:"Hold the bottom for 2 seconds"},
+bridge:{f:[{t:-90,a:SUPA,l:SUPL,an:"hip"},{t:-66,a:[112,112,112,112],l:[113,6,113,6],an:"sh",ax:36}],tg:"Glutes and hamstrings",
+ s:["Lie on your back, knees bent, feet flat and hip-width.","Press through your heels and lift your hips.","Squeeze your glutes at the top for 1 second.","Lower slowly."],
+ m:["Arching the low back at the top","Pushing through the toes"],e:"Smaller lift",h:"Single-leg, or weight on hips"},
+bridgeP:{f:[{t:-74,a:[112,112,112,112],l:[120,10,120,10],an:"sh",ax:36},{t:-66,a:[112,112,112,112],l:[113,6,113,6],an:"sh",ax:36}],tg:"Glutes",
+ s:["Lift into a glute bridge.","Stay near the top.","Pulse your hips up and down an inch.","Keep squeezing your glutes."],
+ m:["Lowering all the way between pulses","Arching the back"],e:"Rest the hips down every 10",h:"Weight on hips"},
+bridgeW:{f:[{t:-90,a:[96,96,96,96],l:SUPL,an:"hip",db:4},{t:-66,a:[112,112,112,112],l:[113,6,113,6],an:"sh",ax:36,db:4}],tg:"Glutes and hamstrings",
+ s:["Lie on your back, knees bent, dumbbell resting on your hip bones.","Hold it with both hands.","Lift your hips and squeeze for 2 counts.","Lower slowly."],
+ m:["Weight rolling onto your belly","Overarching at the top"],e:"No weight",h:"Pause 3 seconds at the top"},
+bridgeOut:{f:[{t:-66,a:[112,112,112,112],l:[113,6,113,6],an:"sh",ax:36},{t:-66,a:[112,112,112,112],l:[113,6,113,6],an:"sh",ax:36,sc:{th:.86}}],tg:"Outer glutes and hips",
+ s:["Lift into a glute bridge and hold.","Keep your feet still.","Open your knees out wide.","Bring them back in with control."],
+ m:["Hips dropping","Letting the feet roll out"],e:"Smaller openings",h:"Loop a band above your knees"},
+bridgeIn:{f:[{t:-66,a:[112,112,112,112],l:[113,6,113,6],an:"sh",ax:36},{t:-70,a:[112,112,112,112],l:[116,8,116,8],an:"sh",ax:36}],tg:"Inner thighs and glutes",
+ s:["Put a pillow or rolled towel between your knees.","Lift into a bridge.","Squeeze the pillow hard as you lift.","Lower slowly and keep squeezing."],
+ m:["Letting the pillow go loose","Arching the back"],e:"Squeeze without lifting",h:"Hold the top and pulse"},
+slBridge:{f:[{t:-84,a:SUPA,l:[132,30,135,135],an:"hip"},{t:-62,a:[112,112,112,112],l:[113,6,118,118],an:"sh",ax:34}],tg:"Glutes and hamstrings",
+ s:["Lie on your back, one foot flat, other leg straight up or out.","Press through the planted heel.","Lift your hips level.","Lower slowly."],
+ m:["One hip dropping","Pushing through the toes"],e:"Keep both feet down, weight on one",h:"Pause at the top"},
+frog:{f:[{t:-90,a:SUPA,l:[130,60,130,60],an:"hip",f:[60,60]},{t:-76,a:[106,106,106,106],l:[118,52,118,52],an:"sh",ax:38,f:[60,60]}],tg:"Glutes",
+ s:["Lie on your back, soles together, knees open.","Pull your feet close to your hips.","Squeeze your glutes to lift the hips a few inches.","Lower and repeat quickly."],
+ m:["Lifting with the low back","Feet drifting away"],e:"Slower reps",h:"Hold the top 2 seconds"},
+donk:{f:[{t:90,a:[0,0,0,0],l:[0,-90,0,-90],an:"w1",ax:82,f:[-170,-170]},{t:90,a:[0,0,0,0],l:[-95,175,0,-90],an:"w1",ax:82,f:[-90,-170]}],tg:"Glutes",
+ s:["Start on hands and knees.","Keep one knee bent at 90 degrees.","Press that heel up toward the ceiling.","Lower without resting the knee."],
+ m:["Arching your low back","Swinging the leg up"],e:"Smaller lift",h:"Hold a light dumbbell behind the knee"},
+hyd:{f:[{v:"f",t:180,a:[0,0,0,0],l:[0,0,0,0],sc:{t:.35,ua:.66,fa:.66,sh:.15},an:"hip"},{v:"f",t:184,a:[0,0,0,0],l:[0,0,78,0],sc:{t:.35,ua:.66,fa:.66,sh:.15},an:"hip"}],tg:"Outer glutes and hips",
+ s:["Start on hands and knees (shown from behind).","Keep the knee bent.","Lift it out to the side to hip height.","Lower with control. Keep hips square."],
+ m:["Shifting all your weight to the other side","Rotating the hips open"],e:"Smaller lift",h:"Pulse at the top"},
+quadCir:{f:[{t:90,a:[0,0,0,0],l:[-90,-90,0,-90],an:"w1",ax:86,f:[-90,-170]},{t:90,a:[0,0,0,0],l:[-104,-104,0,-90],an:"w1",ax:86,f:[-104,-170]}],tg:"Glutes and hips",
+ s:["Start on hands and knees.","Straighten one leg back at hip height.","Draw small circles with your foot.","Switch direction halfway."],
+ m:["Low back sagging","Circles getting sloppy"],e:"Keep the toe on the floor",h:"Bigger circles, slower"},
+sideLift:{f:[{t:-90,a:[-90,-90,100,60],l:[88,88,90,90],an:"hip",f:[180,180]},{t:-90,a:[-90,-90,100,60],l:[126,126,90,90],an:"hip",f:[216,180]}],tg:"Outer hips and glutes",
+ s:["Lie on your side, head on your arm, legs long.","Stack your hips.","Lift the top leg with toes facing forward.","Lower slowly without resting."],
+ m:["Rolling the hips back","Kicking the leg forward"],e:"Bend the bottom knee",h:"Pulse at the top"},
+inner:{f:[{t:-90,a:[-90,-90,100,60],l:[90,90,140,30],an:"hip",f:[180,90]},{t:-90,a:[-90,-90,100,60],l:[102,102,140,30],an:"hip",f:[192,90]}],tg:"Inner thighs",
+ s:["Lie on your side and bend the top leg with that foot flat in front.","Keep the bottom leg straight.","Lift the bottom leg a few inches.","Lower slowly."],
+ m:["Rolling backward","Bending the working knee"],e:"Smaller lift",h:"Hold at the top"},
+clam:{f:[{t:-90,a:[-90,-90,100,60],l:[128,-58,125,-60],an:"hip",f:[-150,-150]},{t:-90,a:[-90,-90,100,60],l:[165,-17,125,-60],an:"hip",f:[-110,-150]}],tg:"Outer glutes and hips",
+ s:["Lie on your side, knees bent, feet together.","Keep your feet touching.","Open your top knee like a clamshell.","Close slowly."],
+ m:["Rolling your hips back","Rushing"],e:"Smaller opening",h:"Lift both feet and then open"},
+legCir:{f:[{t:-90,a:SUPA,l:[176,176,90,90],an:"hip"},{t:-90,a:SUPA,l:[150,150,90,90],an:"hip"}],tg:"Hips, inner and outer thighs, core",
+ s:["Lie on your back, one leg up toward the ceiling.","Keep the other leg long on the mat.","Circle the raised leg from the hip.","Keep your hips still. Switch direction."],
+ m:["Hips rocking","Circles too big to control"],e:"Bend the bottom knee",h:"Bigger circles"},
+scissor:{f:[{t:-100,h:-20,a:[110,110,110,110],l:[178,178,115,115],an:"hip"},{t:-100,h:-20,a:[110,110,110,110],l:[115,115,178,178],an:"hip"}],tg:"Core, hips and thighs",
+ s:["Lie on your back, head and shoulders lifted.","Lift both legs.","Switch them like scissors with control.","Keep your low back on the mat."],
+ m:["Low back arching","Head pulling with the neck"],e:"Head down, bend knees",h:"Lower the bottom leg closer to the floor"},
+butterflyF:{f:[{v:"f",t:180,a:[15,20,-15,-20],l:[-115,55,115,-55],an:"hip",f:[90,-90]},{v:"f",t:180,a:[15,20,-15,-20],l:[-95,75,95,-75],an:"hip",f:[90,-90]}],tg:"Inner thighs",
+ s:["Sit tall, soles of your feet together.","Hold your ankles.","Press your knees down toward the floor.","Release a little and repeat."],
+ m:["Slumping your back","Bouncing hard"],e:"Feet further away",h:"Hold the press for 3 seconds"}
+};
+
+var CURL_A={a:[3,3,3,3],db:1},HINGE={t:128,l:[16,-8,16,-8]};
+function hz(o){var r={t:128,l:[16,-8,16,-8]};for(var k in o)r[k]=o[k];return r}
+var SUP_HEAD={t:-90,an:"hip",l:SUPL};
+function sp(o){var r={t:-90,an:"hip",a:SUPA,l:SUPL};for(var k in o)r[k]=o[k];return r}
+var G2={
+curl:{f:[CURL_A,{a:[3,168,3,168],db:1}],tg:"Biceps (front of upper arm)",
+ s:["Stand tall, a dumbbell in each hand, palms forward.","Pin your elbows to your sides.","Curl up for 2 counts.","Lower for 3 counts all the way down."],
+ m:["Swinging the body","Elbows drifting forward"],e:"Lighter weight or one arm at a time",h:"Add a 2-second squeeze at the top"},
+hammer:{f:[CURL_A,{a:[3,160,3,160],db:1}],tg:"Biceps and forearms",
+ s:["Hold dumbbells with palms facing in.","Keep elbows at your sides.","Curl up without turning your wrists.","Lower slowly."],
+ m:["Swinging","Shrugging the shoulders"],e:"Alternate arms",h:"Pause halfway down"},
+pulseCurl:{f:[CURL_A,{a:[3,90,3,90],db:1}],tg:"Biceps",
+ s:["Hold dumbbells at your sides.","Curl up only to halfway (elbow at 90).","Lower and repeat in quick small reps.","Keep elbows still."],
+ m:["Going too fast and swinging","Letting arms fully relax"],e:"Lighter weight",h:"Top-half pulses after"},
+curlPress:{f:[{a:[3,168,3,168],db:1},{a:[178,178,178,178],db:1}],tg:"Biceps and shoulders",
+ s:["Curl the dumbbells up to your shoulders.","Press them straight overhead.","Lower to your shoulders.","Uncurl slowly."],
+ m:["Arching the low back when pressing","Rushing the lowering"],e:"Lighter weights",h:"Add a squat"},
+ohTri:{f:[{a:[172,-15,172,-15],db:4},{a:[176,178,176,178],db:4}],tg:"Triceps (back of upper arm)",
+ s:["Hold one dumbbell overhead with both hands.","Keep elbows pointing forward, close to your head.","Lower it behind your head.","Straighten your arms back up."],
+ m:["Elbows flaring out wide","Arching your back"],e:"Sit in a chair",h:"Slow 3-count lowering"},
+kick:{f:[hz({a:[-52,0,-52,0],db:1}),hz({a:[-52,-52,-52,-52],db:1})],tg:"Triceps",
+ s:["Hinge forward with a flat back, knees soft.","Lift your elbows to your sides.","Straighten your arms back.","Squeeze, then bend back to 90 degrees."],
+ m:["Elbows dropping","Swinging the weight"],e:"One arm at a time with a hand on a chair",h:"Hold the squeeze 2 seconds"},
+skull:{f:[sp({a:[172,-128,172,-128],db:1}),sp({a:[176,176,176,176],db:1})],tg:"Triceps",
+ s:["Lie on your back, knees bent, arms straight up.","Keep upper arms still.","Bend only at the elbows to lower weights by your head.","Straighten back up."],
+ m:["Elbows flaring out","Moving the upper arms"],e:"Lighter weight",h:"Slow 3-count lowering"},
+dips:{f:[{t:180,a:[-10,0,-10,0],l:[90,0,90,0],an:"w1",ax:30,ay:66},{t:180,a:[-62,2,-62,2],l:[60,-14,60,-14],an:"w1",ax:30,ay:66},{chair:12}],tg:"Triceps",
+ s:["Sit on a couch or chair edge, hands next to hips, fingers forward.","Slide your hips off the front.","Bend your elbows straight back to lower.","Push up to straighten your arms."],
+ m:["Elbows flaring sideways","Shrugging up to your ears"],e:"Bend knees more and keep feet closer",h:"Straighten your legs"},
+cgPush:{f:[PL_A,{t:99,a:[-62,76,-62,76],l:[-81,-81,-81,-81],f:[-170,-170],an:"w1",ax:82,ay:96}],tg:"Triceps and chest",
+ s:["Start in a plank, hands under shoulders (knees down is fine).","Keep elbows hugging your ribs.","Lower your chest toward the floor.","Push back up in a straight line."],
+ m:["Hips sagging","Elbows flaring out"],e:"Knees down or hands on a couch",h:"Slow 3-count lowering"},
+push:{f:[PL_A,{t:99,a:[-62,76,-62,76],l:[-81,-81,-81,-81],f:[-170,-170],an:"w1",ax:82,ay:96}],tg:"Chest, arms and core",
+ s:["Hands a bit wider than shoulders, body in a straight line.","Knees down is fine.","Lower your chest toward the floor.","Press back up."],
+ m:["Hips sagging or piking","Head dropping"],e:"Hands on a couch or wall",h:"Full push-up from toes"},
+row:{f:[hz({a:[0,0,0,0],db:1}),hz({a:[-62,4,-62,4],db:1})],tg:"Upper back and back of shoulders",
+ s:["Hinge forward with a flat back, knees soft.","Let the dumbbells hang.","Pull elbows back toward your hips.","Squeeze your shoulder blades, then lower."],
+ m:["Rounding the back","Shrugging"],e:"Lighter weights",h:"Pause 2 seconds at the top"},
+row1:{f:[{t:112,a:[0,0,40,40],l:[30,-10,-10,-10],db:3},{t:112,a:[-70,4,40,40],l:[30,-10,-10,-10],db:3}],tg:"Upper back and lats",
+ s:["Staggered stance, one hand on your knee or a chair.","Let the dumbbell hang with a flat back.","Pull your elbow to your hip.","Lower slowly."],
+ m:["Twisting your torso","Pulling with the hand, not the elbow"],e:"Lighter weight",h:"Slow 3-count lowering"},
+rfly:{f:[{v:"f",t:180,h:20,a:[6,-6,-6,6],l:[-6,0,6,0],sc:{t:.62},db:1},{v:"f",t:180,h:20,a:[-88,-78,88,78],l:[-6,0,6,0],sc:{t:.62},db:1}],tg:"Back of shoulders and upper back",
+ s:["Hinge forward, back flat (shown from the front).","Arms hang with soft elbows.","Open your arms out wide to shoulder height.","Squeeze your shoulder blades, then lower."],
+ m:["Using heavy weight and swinging","Shrugging"],e:"No weights",h:"Pause at the top"},
+renegade:{f:[{t:115,a:[0,0,0,0],l:[-65,-65,-65,-65],f:[-150,-150],an:"w2",ax:82,ay:96,db:1},{t:115,a:[-60,6,0,0],l:[-65,-65,-65,-65],f:[-150,-150],an:"w2",ax:82,ay:96,db:1}],tg:"Back, arms and core",
+ s:["Plank with hands on the dumbbells (knees down is fine).","Feet wide for balance.","Row one dumbbell to your hip.","Lower and switch. Keep hips still."],
+ m:["Hips twisting","Rushing"],e:"Knees down",h:"Add a push-up between rows"},
+ytw:{f:[{t:90,a:[95,95,95,95],l:[-90,-90,-90,-90],an:"hip",f:[-170,-170]},{t:92,h:-6,a:[112,112,112,112],l:[-90,-90,-90,-90],an:"hip",f:[-170,-170]}],tg:"Upper back and posture muscles",
+ s:["Lie face down, forehead down.","Lift your arms into a Y and hold a second.","Move to a T, then a W (elbows bent, pulled down).","Keep your neck long."],
+ m:["Cranking your neck up","Lifting with the low back"],e:"Smaller lifts",h:"Hold each shape 3 seconds"},
+superman:{f:[{t:90,a:[100,100,100,100],l:[-90,-90,-90,-90],an:"hip",f:[-170,-170]},{t:100,h:-5,a:[-110,110,-110,110],l:[-95,-95,-95,-95],an:"hip",f:[-170,-170]}],tg:"Back, glutes and posture",
+ s:["Lie face down, arms reaching forward.","Lift your chest and arms a little.","Pull your elbows back toward your ribs.","Reach forward again. Keep it slow."],
+ m:["Throwing the head back","Lifting too high"],e:"Keep legs down",h:"Lift your legs too"},
+swimmer:{f:[{t:95,a:[108,108,84,84],l:[-84,-84,-98,-98],an:"hip",f:[-170,-170]},{t:95,a:[84,84,108,108],l:[-98,-98,-84,-84],an:"hip",f:[-170,-170]}],tg:"Back, glutes and shoulders",
+ s:["Lie face down, arms and legs long.","Lift your chest, arms and legs slightly.","Flutter opposite arm and leg.","Breathe steadily."],
+ m:["Bending knees","Neck cranked up"],e:"Arms only",h:"Faster with longer reach"},
+lat:{f:[{v:"f",a:[-10,-6,10,6],l:[-5,0,5,0],db:1},{v:"f",a:[-86,-80,86,80],l:[-5,0,5,0],db:1}],tg:"Side of shoulders",
+ s:["Stand tall with light dumbbells at your sides.","Soft elbows.","Raise arms out to shoulder height, no higher.","Lower slowly."],
+ m:["Shrugging","Swinging up with momentum"],e:"No weights or one arm at a time",h:"Pause at the top"},
+front:{f:[{a:[3,3,3,3],db:1},{a:[90,90,3,3],db:1}],tg:"Front of shoulders",
+ s:["Stand tall with weights in front of your thighs.","Raise one arm straight forward to shoulder height.","Lower slowly.","Alternate arms."],
+ m:["Leaning back","Going above shoulder height"],e:"Lighter weight",h:"Both arms together"},
+press:{f:[{v:"f",a:[-90,-178,90,178],l:[-5,0,5,0],db:1},{v:"f",a:[-168,-172,168,172],l:[-5,0,5,0],db:1}],tg:"Shoulders and triceps",
+ s:["Hold dumbbells at shoulder height, elbows out.","Brace your core, ribs down.","Press straight up overhead.","Lower slowly to shoulder height."],
+ m:["Arching the low back","Locking out hard"],e:"Sit down or one arm at a time",h:"Slow 3-count lowering"},
+arnold:{f:[{a:[30,172,30,172],db:1},{a:[178,178,178,178],db:1}],tg:"Shoulders",
+ s:["Start with weights at chest, palms facing you.","Press up, rotating palms to face forward.","Finish overhead.","Reverse the turn as you lower."],
+ m:["Arching back","Rushing the rotation"],e:"Lighter weight",h:"Slow 3-count lowering"},
+halo:{f:[{v:"f",a:[-22,150,22,-150],l:[-5,0,5,0],db:4},{v:"f",a:[-150,100,150,-100],l:[-5,0,5,0],db:4}],tg:"Shoulders, upper back and core",
+ s:["Hold one dumbbell by the ends at your chest.","Circle it around your head, close to your neck.","Return to your chest.","Switch direction each rep."],
+ m:["Moving your head instead of the weight","Arching your back"],e:"No weight",h:"Do it in a squat hold"},
+circF:{f:[{v:"f",a:[-90,-90,90,90],l:[-5,0,5,0]},{v:"f",a:[-78,-78,78,78],l:[-5,0,5,0]}],tg:"Shoulders",
+ s:["Arms straight out at shoulder height.","Make small, quick circles forward.","Keep shoulders down away from ears.","Keep arms long the whole time."],
+ m:["Letting arms drop","Shrugging"],e:"Bigger slower circles",h:"Hold light weights"},
+circB:{f:[{v:"f",a:[-90,-90,90,90],l:[-5,0,5,0]},{v:"f",a:[-102,-102,102,102],l:[-5,0,5,0]}],tg:"Shoulders and upper back",
+ s:["Arms straight out at shoulder height.","Make small, quick circles backward.","Squeeze your shoulder blades lightly.","Stay tall."],
+ m:["Arms drifting down","Shrugging"],e:"Bigger slower circles",h:"Hold light weights"},
+tPulse:{f:[{a:[-60,-60,-60,-60]},{a:[-88,-88,-88,-88]}],tg:"Back of shoulders and upper back",
+ s:["Arms out to the sides, palms facing back.","Keep arms straight.","Pulse them back a few inches.","Stay tall, ribs down."],
+ m:["Arching your back","Arms dropping"],e:"Slower pulses",h:"Hold light weights"},
+prayer:{f:[{v:"f",a:[-30,150,30,-150],l:[-5,0,5,0]},{v:"f",a:[-48,170,48,-170],l:[-5,0,5,0]}],tg:"Chest and arms",
+ s:["Press your palms together in front of your chest.","Push them hard into each other.","Pulse them up a few inches and back down.","Keep pressing the whole time."],
+ m:["Relaxing the press","Shoulders creeping up"],e:"Slower pulses",h:"Hold a light weight between palms"},
+triPulse:{f:[{a:[-22,-22,-22,-22]},{a:[-40,-40,-40,-40]}],tg:"Triceps",
+ s:["Stand tall, arms straight down by your sides.","Turn palms to face back.","Pulse your arms back a few inches.","Keep elbows straight."],
+ m:["Bending elbows","Leaning forward"],e:"Slower pulses",h:"Hold light weights"},
+chestFly:{f:[sp({a:[118,150,118,150],db:1}),sp({a:[176,176,176,176],db:1})],tg:"Chest and front of shoulders",
+ s:["Lie on your back, knees bent, weights above your chest.","Soft bend in elbows.","Open arms out wide until elbows near the floor.","Hug them back together."],
+ m:["Bending elbows too much","Dropping arms too fast"],e:"Lighter weights",h:"Pause in the open position"},
+floorPress:{f:[sp({a:[120,180,120,180],db:1}),sp({a:[176,176,176,176],db:1})],tg:"Chest and triceps",
+ s:["Lie on your back, knees bent, elbows on the floor.","Hold weights over your elbows.","Press straight up over your chest.","Lower until elbows touch the floor."],
+ m:["Bouncing elbows","Arching your back"],e:"Lighter weights",h:"Slow 3-count lowering"},
+tap:{f:[{t:115,a:[0,0,0,0],l:[-65,-65,-65,-65],f:[-150,-150],an:"w2",ax:82,ay:96},{t:115,a:[150,-55,0,0],l:[-65,-65,-65,-65],f:[-150,-150],an:"w2",ax:82,ay:96}],tg:"Core and shoulders",
+ s:["High plank, hands under shoulders, feet wide.","Lift one hand and tap the opposite shoulder.","Place it down and switch.","Keep hips still."],
+ m:["Hips rocking side to side","Feet too close"],e:"Knees down",h:"Feet closer together"}
+};
+for(var k in G2)G[k]=G2[k];
+
+var PLK={t:103,a:[0,90,0,90],l:[-77,-77,-77,-77],f:[-160,-160],an:"e1",ax:80};
+var QUAD={t:90,a:[0,0,0,0],l:[0,-90,0,-90],an:"w1",ax:84,f:[-170,-170]};
+function q(o){var r={};for(var k in QUAD)r[k]=QUAD[k];for(k in o)r[k]=o[k];return r}
+function hp(o){var r={t:115,a:[0,0,0,0],l:[-65,-65,-65,-65],f:[-150,-150],an:"w2",ax:82,ay:96};for(var k in o)r[k]=o[k];return r}
+var HEADUP={t:-100,h:-25};
+function su(o){var r={t:-100,h:-25,an:"hip",a:[160,-70,160,-70],l:SUPL};for(var k in o)r[k]=o[k];return r}
+var G3={
+plank:{f:[PLK,{t:104,a:[0,90,0,90],l:[-76,-76,-76,-76],f:[-160,-160],an:"e1",ax:80}],tg:"Deep core, shoulders and glutes",
+ s:["Forearms down, elbows under shoulders.","Step feet back, body in one straight line.","Squeeze glutes and pull your belly button in.","Breathe and hold."],
+ m:["Hips sagging","Bottom piking up"],e:"Knees down",h:"Lift one foot at a time"},
+side:{f:[{v:"f",t:-112,a:[0,-60,180,180],l:[68,68,68,68],an:"e1",ax:40,f:[160,160]},{v:"f",t:-116,a:[0,-60,170,170],l:[64,64,64,64],an:"e1",ax:40,f:[160,160]}],tg:"Obliques (sides of waist) and shoulders",
+ s:["Lie on your side, elbow under your shoulder.","Stack or stagger your feet.","Lift your hips into a straight line.","Hold. Top arm up or on your hip."],
+ m:["Hips sagging toward the floor","Elbow out in front of the shoulder"],e:"Bottom knee down",h:"Lift the top leg"},
+sideDip:{f:[{v:"f",t:-100,a:[0,-60,100,60],l:[80,80,80,80],an:"e1",ax:40,f:[160,160]},{v:"f",t:-116,a:[0,-60,100,60],l:[64,64,64,64],an:"e1",ax:40,f:[160,160]}],tg:"Obliques",
+ s:["Get into a side plank on your forearm.","Lower your hip toward the floor.","Lift it back up high.","Move slowly."],
+ m:["Rolling forward","Shoulder sinking"],e:"Bottom knee down",h:"Pause at the top"},
+deadbug:{f:[sp({a:[178,178,178,178],l:[178,90,178,90]}),sp({a:[-100,-100,178,178],l:[178,90,98,98]})],tg:"Deep core",
+ s:["Lie on your back, arms up, knees bent over hips.","Press your low back into the mat.","Reach one arm back and the opposite leg out.","Return and switch sides."],
+ m:["Low back arching","Moving too fast"],e:"Move just the legs",h:"Hold a light weight in your hands"},
+bicycle:{f:[su({l:[-170,100,100,100]}),su({l:[100,100,-170,100]})],tg:"Obliques and abs",
+ s:["Lie on your back, hands behind your head.","Lift shoulders and legs.","Twist an elbow toward the opposite knee as the other leg extends.","Switch slowly."],
+ m:["Pulling on your neck","Going fast and sloppy"],e:"Keep feet higher",h:"Lower the straight leg"},
+hollow:{f:[{t:-104,h:-12,a:[-110,-110,-110,-110],l:[104,104,104,104],an:"hip"},{t:-106,h:-12,a:[-112,-112,-112,-112],l:[106,106,106,106],an:"hip"}],tg:"Deep core",
+ s:["Lie on your back, arms overhead.","Press your low back down.","Lift shoulders and legs a few inches.","Hold the shape and breathe."],
+ m:["Low back lifting off the mat","Holding your breath"],e:"Bend the knees",h:"Arms and legs lower"},
+hundred:{f:[{t:-104,h:-25,a:[98,98,98,98],l:[130,130,130,130],an:"hip"},{t:-104,h:-25,a:[86,86,86,86],l:[130,130,130,130],an:"hip"}],tg:"Deep core",
+ s:["Lie on your back, head and shoulders lifted.","Legs up, or knees bent at tabletop.","Arms long at your sides, pump them up and down.","Breathe in for 5 pumps and out for 5."],
+ m:["Neck straining","Low back arching"],e:"Head down, knees bent",h:"Lower the legs"},
+toeTap:{f:[sp({l:[178,90,178,90]}),sp({l:[118,28,178,90]})],tg:"Lower abs",
+ s:["Lie on your back, knees bent over hips.","Press your low back down.","Lower one foot to tap the floor.","Bring it back and switch."],
+ m:["Back arching as the foot lowers","Rushing"],e:"Smaller range",h:"Both feet together"},
+twist:{f:[{t:-150,a:[120,120,120,120],l:[130,60,130,60],an:"hip",db:4},{t:-150,a:[60,60,60,60],l:[130,60,130,60],an:"hip",db:4}],tg:"Obliques",
+ s:["Sit with knees bent, lean back a little, back straight.","Hold the weight at your chest.","Rotate your ribs to one side, then the other.","Move from your waist, not just your arms."],
+ m:["Rounding your back","Only moving the arms"],e:"No weight, feet down",h:"Lift your feet"},
+lower:{f:[sp({l:[178,178,178,178]}),sp({l:[122,122,122,122]})],tg:"Lower abs",
+ s:["Lie on your back, legs straight up.","Press your low back down, hands under hips if needed.","Lower legs slowly as far as your back stays down.","Bring them back up."],
+ m:["Back arching off the floor","Dropping fast"],e:"Bend your knees",h:"Lower closer to the floor"},
+revCrunch:{f:[sp({l:[178,92,178,92]}),{t:-80,an:"sh",ax:38,a:[90,90,90,90],l:[-160,110,-160,110]}],tg:"Lower abs",
+ s:["Lie on your back, knees bent over hips.","Curl your hips off the mat, knees toward chest.","Lower slowly.","Use your abs, not momentum."],
+ m:["Swinging legs","Rushing the lowering"],e:"Smaller curl",h:"Slower with a pause"},
+birddog:{f:[q({}),q({a:[90,90,0,0],l:[0,-90,-90,-90],an:"w2"})],tg:"Core, back and glutes",
+ s:["Start on hands and knees.","Reach one arm forward and the opposite leg back.","Pause and keep hips level.","Return and switch."],
+ m:["Hips tilting","Arching the low back"],e:"Arm only or leg only",h:"Hold 3 seconds each rep"},
+plankJack:{f:[hp({}),hp({l:[-65,-65,-60,-60]})],tg:"Core, shoulders and legs",
+ s:["Start in a high plank.","Step one foot out wide, then the other.","Step them back in one at a time.","Keep hips level."],
+ m:["Hips bouncing","Shoulders past the hands"],e:"Slow steps",h:"Small quiet jumps"},
+climber:{f:[hp({l:[30,-80,-65,-65]}),hp({l:[-65,-65,30,-80]})],tg:"Core, shoulders; raises heart rate",
+ s:["Start in a high plank.","Drive one knee toward your chest.","Switch legs at a steady pace.","Keep shoulders over wrists."],
+ m:["Hips popping up","Bouncing"],e:"Slow and controlled",h:"Faster"},
+heelTap:{f:[sp({h:-25,t:-100,a:[105,105,105,105]}),sp({h:-25,t:-100,a:[95,95,115,115]})],tg:"Obliques",
+ s:["Lie on your back, knees bent, feet flat.","Lift your head and shoulders.","Reach one hand to tap that heel.","Switch side to side."],
+ m:["Neck straining","Dropping shoulders between taps"],e:"Head down between sets",h:"Move feet further away"},
+slStretch:{f:[su({a:[110,90,110,90],l:[-160,130,100,100]}),su({a:[110,90,110,90],l:[100,100,-160,130]})],tg:"Abs and hips",
+ s:["Lie on your back, head and shoulders up.","Hug one shin as the other leg stretches out.","Switch legs.","Keep your low back down."],
+ m:["Rocking side to side","Neck tense"],e:"Head down",h:"Lower the long leg"},
+crisscross:{f:[su({l:[-170,100,100,100]}),su({l:[100,100,-170,100]})],tg:"Obliques and abs",
+ s:["Lie on your back, hands behind your head.","Lift shoulders, one knee in, the other leg long.","Twist toward the bent knee and hold a beat.","Switch slowly."],
+ m:["Pulling the head","Elbow collapsing in"],e:"Keep feet higher",h:"Hold each twist 3 counts"},
+rollup:{f:[{t:-92,a:[-95,-95,-95,-95],l:[90,90,90,90],an:"hip"},{t:122,a:[98,98,98,98],l:[90,90,90,90],an:"hip"}],tg:"Abs and spine mobility",
+ s:["Lie long, arms overhead.","Lift arms and curl head and shoulders up.","Roll up one bone at a time and reach to your toes.","Roll back down slowly."],
+ m:["Jerking up with momentum","Feet flying up"],e:"Bend knees and hold thighs",h:"Slower, 5 counts each way"},
+bear:{f:[q({l:[2,-74,2,-74],f:[-150,-150]}),q({l:[2,-74,2,-74],f:[-150,-150],t:91})],tg:"Core, shoulders and quads",
+ s:["Start on hands and knees, toes tucked.","Lift your knees an inch off the floor.","Keep back flat and still.","Hold and breathe."],
+ m:["Hips lifting high","Holding breath"],e:"Lift for 5 seconds, rest, repeat",h:"Tap one shoulder at a time"},
+flutter:{f:[sp({l:[110,110,100,100]}),sp({l:[100,100,110,110]})],tg:"Lower abs",
+ s:["Lie on your back, hands under your hips.","Lift your legs a little.","Kick small and fast up and down.","Keep your low back down."],
+ m:["Back arching","Big swinging kicks"],e:"Legs higher",h:"Head and shoulders up too"},
+wCrunch:{f:[sp({a:[130,-110,130,-110],db:4}),{t:-112,h:-15,an:"hip",a:[150,-90,150,-90],l:SUPL,db:4}],tg:"Abs",
+ s:["Lie on your back, knees bent, dumbbell held on your chest.","Breathe out and lift your shoulder blades.","Lower slowly.","Keep your chin slightly tucked."],
+ m:["Pulling with the neck","Sitting all the way up"],e:"No weight",h:"Hold the top 2 seconds"},
+standKnee:{f:[{a:[165,-75,165,-75]},{t:168,a:[150,-80,150,-80],l:[100,0,0,0]}],tg:"Abs and obliques",
+ s:["Stand tall, hands behind your head.","Lift one knee up.","Crunch the opposite elbow toward it.","Alternate sides."],
+ m:["Rounding way over","Rushing"],e:"Hold a chair, knee only",h:"Faster pace"},
+standOb:{f:[{v:"f",a:[-140,60,140,-60],l:[-5,0,5,0]},{v:"f",t:166,a:[-140,60,110,-90],l:[-5,0,70,0],f:[-60,30]}],tg:"Obliques",
+ s:["Stand tall, hands behind your head.","Lift one knee out to the side.","Bring that elbow down to meet it.","Return and repeat."],
+ m:["Leaning forward","Moving too fast"],e:"Smaller lift",h:"Hold a light weight"},
+chop:{f:[{v:"f",t:176,a:[-145,-150,-125,-145],l:[-12,0,12,0],db:2},{v:"f",t:184,a:[20,40,35,40],l:[-15,-5,15,5],db:2}],tg:"Obliques and shoulders",
+ s:["Hold one dumbbell with both hands up by one shoulder.","Pull it down across your body toward the opposite knee.","Pivot the back foot and turn from your middle.","Lift back up with control."],
+ m:["Rounding the back","Only using the arms"],e:"No weight",h:"Add a squat at the bottom"},
+march:{f:[{a:[-40,30,40,120],l:[95,0,0,0]},{a:[40,120,-40,30],l:[0,0,95,0]}],tg:"Raises heart rate, core and hips",
+ s:["Stand tall.","Drive one knee up to hip height.","Swing opposite arms.","Switch quickly with quiet feet."],
+ m:["Leaning back","Stomping"],e:"Slower, lower knees",h:"Faster"},
+stepJack:{f:[{v:"f",a:[-8,-8,8,8],l:[-3,0,3,0]},{v:"f",a:[-160,-165,160,165],l:[-3,0,24,24]}],tg:"Raises heart rate, shoulders and legs",
+ s:["Stand tall, arms down.","Step one foot out as arms sweep overhead.","Step back in as arms come down.","Alternate sides quickly."],
+ m:["Shuffling instead of stepping wide","Arms only halfway up"],e:"Arms to shoulder height",h:"Small quiet jacks"},
+squatReach:{f:[{t:142,a:[45,45,45,45],l:[80,-25,80,-25]},{a:[178,178,178,178],f:[40,40]}],tg:"Legs and glutes; raises heart rate",
+ s:["Squat down with arms low.","Drive up fast.","Reach your arms overhead and rise onto your toes.","Land softly back into the squat."],
+ m:["Knees caving","Landing heavy"],e:"No toe rise",h:"Small quiet jump"},
+fastFeet:{f:[{t:170,a:[20,110,20,110],l:[30,-15,30,-15]},{t:170,a:[20,110,20,110],l:[45,-10,30,-15]}],tg:"Raises heart rate, calves",
+ s:["Stand in a slight squat.","Stay on the balls of your feet.","Take tiny, fast steps in place.","Keep it light and quiet."],
+ m:["Standing too upright","Heavy feet"],e:"Slower steps",h:"Faster, lower stance"},
+punch:{f:[{a:[90,90,30,160],l:[12,-6,-12,-6]},{a:[30,160,90,90],l:[12,-6,-12,-6]}],tg:"Arms, shoulders and core; raises heart rate",
+ s:["Stand in a staggered stance, knees soft.","Fists up by your chin.","Punch one arm forward, then the other.","Rotate slightly and brace your core."],
+ m:["Locking elbows hard","Holding breath"],e:"Slower punches",h:"Hold light weights"},
+stepBack:{f:[{t:100,h:30,a:[10,10,10,10],l:[60,-40,60,-40],an:"w1",ax:80,ay:96},hp({an:"w1"})],tg:"Full body; raises heart rate",
+ s:["Squat and put your hands on the floor.","Step back one foot at a time to a plank.","Step back in one foot at a time.","Stand up tall."],
+ m:["Hips sagging in plank","Rounding the back to stand"],e:"Hands on a chair",h:"Add a push-up"},
+toeTouch:{f:[{a:[-20,-10,-20,-10]},{t:165,a:[-30,-20,100,100],l:[85,85,0,0]}],tg:"Hamstrings and core; raises heart rate",
+ s:["Stand tall.","Kick one leg up straight in front.","Reach the opposite hand toward that foot.","Alternate quickly."],
+ m:["Rounding your back to reach","Kicking too high"],e:"Lower kicks",h:"Faster pace"},
+thruster:{f:[{t:142,a:[20,170,20,170],l:[80,-25,80,-25],db:1},{a:[178,178,178,178],db:1}],tg:"Legs, glutes and shoulders",
+ s:["Hold weights at your shoulders.","Squat down.","Drive up and press the weights overhead.","Lower to shoulders as you squat again."],
+ m:["Pressing before you stand","Knees caving"],e:"Squat only, then press",h:"Faster pace"},
+swing:{f:[{t:108,a:[-25,-25,-25,-25],l:[22,-12,22,-12],db:4},{a:[90,90,90,90],db:4}],tg:"Glutes, hamstrings and back",
+ s:["Hold one dumbbell with both hands, feet wide.","Hinge and swing it back between your legs.","Snap your hips forward to swing it to chest height.","Let it fall back into the next hinge."],
+ m:["Squatting instead of hinging","Lifting with the arms"],e:"Smaller swing",h:"Faster hips"},
+lungeCurl:{f:[{a:[3,3,3,3],db:1},{a:[3,168,3,168],l:[88,0,-12,-88],f:[90,-160],db:1}],tg:"Legs, glutes and biceps",
+ s:["Stand with weights at your sides.","Step back into a lunge.","Curl the weights at the bottom.","Lower the weights and step back up."],
+ m:["Leaning forward","Front knee caving"],e:"No weights",h:"Hold the bottom for the curl"},
+lungeTwist:{f:[{a:[10,165,10,165],db:4},{a:[10,165,10,165],l:[88,0,-12,-88],f:[90,-160],db:4}],tg:"Legs, glutes and obliques",
+ s:["Hold one dumbbell at your chest.","Step back into a lunge.","Rotate your chest toward the front leg.","Turn back to center and stand."],
+ m:["Twisting the knee instead of the chest","Rushing"],e:"No weight",h:"Arms straight out while twisting"},
+dlRow:{f:[{t:105,a:[0,0,0,0],l:[14,-6,14,-6],db:1},{t:105,a:[-65,5,-65,5],l:[14,-6,14,-6],db:1}],tg:"Hamstrings, glutes and back",
+ s:["Hinge down with a flat back.","Row both weights to your hips.","Lower them.","Stand up tall, then repeat."],
+ m:["Rounding the back","Jerking the weights"],e:"Lighter weights",h:"Pause in the row"},
+plieLat:{f:[{v:"f",a:[-10,-6,10,6],l:[-45,-12,45,12],db:1},{v:"f",a:[-86,-80,86,80],l:[-68,-8,68,8],db:1}],tg:"Inner thighs, glutes and shoulders",
+ s:["Stand wide, toes out, weights at your sides.","Lower into a plié.","Raise arms out to shoulder height as you lower.","Stand and lower the arms."],
+ m:["Shrugging","Knees caving"],e:"No weights",h:"Hold the plié for 3 raises"},
+releveCirc:{f:[{v:"f",a:[-90,-90,90,90],l:[-4,0,4,0],f:[-10,10]},{v:"f",a:[-80,-80,80,80],l:[-4,0,4,0],f:[-10,10]}],tg:"Calves, shoulders and balance",
+ s:["Rise onto the balls of your feet.","Arms out at shoulder height.","Make small arm circles.","Stay up on your toes the whole time."],
+ m:["Heels dropping","Shoulders shrugging"],e:"Heels down",h:"Feet together"},
+curtCurl:{f:[{a:[3,3,3,3],db:1},{a:[3,168,3,168],l:[86,0,-10,-86],f:[90,-160],db:1}],tg:"Glutes, inner thighs and biceps",
+ s:["Stand with weights at your sides.","Step back and across into a curtsy lunge.","Curl at the bottom.","Stand and switch legs."],
+ m:["Front knee caving","Swinging the weights"],e:"No weights",h:"Slow 3-count lowering"}
+};
+for(var k in G3)G[k]=G3[k];
+
+var G4={
+neck:{f:[{v:"f",a:[-5,0,5,0],l:[-4,0,4,0]},{v:"f",h:28,a:[-5,0,5,0],l:[-4,0,4,0]}],tg:"Sides of the neck",
+ s:["Sit or stand tall, shoulders down.","Tip one ear toward that shoulder.","Breathe for a few seconds.","Roll slowly to the other side."],
+ m:["Lifting the shoulder up to the ear","Forcing the stretch"],e:"Smaller range",h:"Rest a hand lightly on your head"},
+shRoll:{f:[{a:[3,3,3,3]},{a:[-12,-6,-12,-6],t:178}],tg:"Shoulders and upper back",
+ s:["Stand or sit tall, arms relaxed.","Lift your shoulders up to your ears.","Roll them back and down.","Go slow and big."],
+ m:["Rushing","Rolling forward only"],e:"Smaller rolls",h:"Add arm circles"},
+wrist:{f:[{a:[90,90,55,100]},{a:[90,90,60,96]}],tg:"Forearms and wrists",
+ s:["Reach one arm straight out, palm up.","Gently pull the fingers back with your other hand.","Hold, then point the fingers down and pull gently.","Switch arms."],
+ m:["Locking the elbow hard","Pulling too hard"],e:"Bend the elbow a little",h:"Hold longer"},
+chest:{f:[{a:[-25,-25,-25,-25]},{t:184,h:-8,a:[-48,-48,-48,-48]}],tg:"Chest and front of shoulders",
+ s:["Clasp your hands behind your back.","Straighten your arms.","Lift your hands and open your chest.","Breathe and hold."],
+ m:["Arching the low back","Jutting the chin forward"],e:"Hold a towel between hands",h:"Hinge forward and let arms fall overhead"},
+twistS:{f:[{t:180,a:[-25,-20,60,90],l:[90,90,90,90],an:"hip"},{t:180,h:-10,a:[-32,-25,70,100],l:[90,90,90,90],an:"hip"}],tg:"Middle and low back",
+ s:["Sit tall with legs long or crossed.","Place one hand behind you on the floor.","Twist toward that hand, the other hand on your knee.","Lengthen up on each breath in, twist on each breath out."],
+ m:["Slumping","Forcing with the arms"],e:"Sit on a pillow",h:"Cross one foot over the opposite knee"},
+fold:{f:[{a:[3,3,3,3]},{t:28,h:5,a:[5,-40,5,-40],l:[12,-6,12,-6]}],tg:"Hamstrings and low back",
+ s:["Stand with feet hip-width, knees soft.","Hinge at your hips and fold forward.","Let your head and arms hang.","Hold elbows and sway gently."],
+ m:["Locking your knees","Forcing your hands to the floor"],e:"Bend knees more",h:"Straighten legs a bit more"},
+ham:{f:[{t:172,a:[60,70,60,70],l:[90,90,90,90],an:"hip"},{t:122,a:[100,96,100,96],l:[90,90,90,90],an:"hip"}],tg:"Hamstrings",
+ s:["Sit tall with legs straight.","Hinge forward from your hips.","Reach toward your feet with a long back.","Breathe and relax a little more each exhale."],
+ m:["Rounding the back to reach","Bouncing"],e:"Bend your knees",h:"Flex your feet"},
+low:{f:[{a:[-10,90,-10,90],l:[80,0,-35,-90],f:[90,-160]},{t:182,a:[175,178,175,178],l:[86,-4,-45,-90],f:[90,-160]}],tg:"Front of the hip and thigh",
+ s:["Kneel with one foot forward and the back knee down.","Slide your hips forward.","Stay tall, arms up if you like.","Hold and breathe. Switch sides."],
+ m:["Arching the low back","Front knee past the toes"],e:"Hands on your front thigh",h:"Reach the arm on the back-leg side up and over"},
+quadst:{f:[{a:[-30,-10,3,3],l:[0,-170,0,0],f:[-120,90]},{a:[-34,-14,3,3],l:[-6,-172,0,0],f:[-120,90]}],tg:"Front of the thigh",
+ s:["Stand tall and hold a wall if needed.","Bend one knee and hold that foot behind you.","Keep knees together and tuck your tailbone.","Hold and switch."],
+ m:["Knee drifting forward or out","Arching the back"],e:"Hold your sock or pant leg",h:"Let go of the wall"},
+butterfly:{f:[{v:"f",t:180,a:[15,20,-15,-20],l:[-105,65,105,-65],an:"hip",f:[90,-90]},{v:"f",t:180,h:8,a:[15,20,-15,-20],l:[-96,74,96,-74],an:"hip",f:[90,-90]}],tg:"Inner thighs and hips",
+ s:["Sit with the soles of your feet together.","Hold your ankles and sit tall.","Let your knees fall open.","Hinge forward a little if you want more."],
+ m:["Rounding your back","Pushing knees down hard"],e:"Feet further away",h:"Fold forward"},
+fig4:{f:[{t:-90,an:"hip",a:SUPA,l:[125,-40,140,35]},{t:-90,an:"hip",a:[120,140,120,140],l:[155,-60,170,80]}],tg:"Outer hip and glutes",
+ s:["Lie on your back, knees bent.","Cross one ankle over the opposite knee.","Lift the bottom foot and hug that thigh toward you.","Hold and switch."],
+ m:["Lifting the head and shoulders","Pulling too hard"],e:"Keep the bottom foot on the floor",h:"Pull the thigh closer"},
+calfst:{f:[{t:165,a:[88,88,88,88],l:[20,-5,-22,-22],f:[90,70]},{t:162,a:[86,86,86,86],l:[26,-8,-24,-24],f:[90,66]},{wall:96}],tg:"Calves",
+ s:["Hands on a wall, one foot back.","Keep the back leg straight and heel down.","Lean forward until you feel the calf.","Hold and switch."],
+ m:["Back heel lifting","Toes turned out"],e:"Shorter stance",h:"Longer stance"},
+dog:{f:[{t:65,h:20,a:[50,50,50,50],l:[-34,-34,-34,-34],f:[-90,-90],an:"w1",ax:92},{t:62,h:22,a:[48,48,48,48],l:[-36,-36,-36,-36],f:[-95,-95],an:"w1",ax:92}],tg:"Hamstrings, calves, shoulders and back",
+ s:["Start on hands and knees, toes tucked.","Lift your hips up and back into an upside-down V.","Press the floor away and let your head hang.","Pedal your heels."],
+ m:["Rounding the back","Shoulders creeping to the ears"],e:"Bend your knees",h:"Press heels toward the floor"},
+catcow:{f:[q({h:-35}),q({h:45,t:84})],tg:"Spine and back",
+ s:["Start on hands and knees.","Breathe in: drop your belly and lift your chest (cow).","Breathe out: round your back and tuck your chin (cat).","Move slowly with your breath."],
+ m:["Moving only the neck","Rushing"],e:"Smaller movements",h:"Pause in each shape"},
+cobra:{f:[{t:96,a:[-10,80,-10,80],l:[-90,-90,-90,-90],an:"hip",f:[-170,-170]},{t:138,h:-8,a:[-40,30,-40,30],l:[-90,-90,-90,-90],an:"hip",f:[-170,-170]}],tg:"Abs, chest and spine",
+ s:["Lie face down, hands under shoulders.","Press your hips down.","Lift your chest with your back, using hands lightly.","Keep elbows soft and shoulders down."],
+ m:["Locking the arms and crunching the low back","Shoulders up by the ears"],e:"Stay on your forearms",h:"Hold longer"},
+child:{f:[{t:70,h:20,a:[95,92,95,92],l:[55,-90,55,-90],f:[-180,-180],an:"hip"},{t:76,h:20,a:[92,90,92,90],l:[50,-90,50,-90],f:[-180,-180],an:"hip"}],tg:"Low back, hips and shoulders",
+ s:["Kneel, big toes together, knees wide.","Sit your hips back toward your heels.","Walk your hands forward and rest your forehead down.","Breathe into your back."],
+ m:["Forcing hips down","Holding tension in the shoulders"],e:"Pillow under hips or head",h:"Walk hands further"},
+thread:{f:[q({}),q({t:80,h:20,a:[-80,-90,0,0],an:"w2"})],tg:"Upper back and shoulders",
+ s:["Start on hands and knees.","Slide one arm under your body, palm up.","Rest that shoulder and the side of your head down.","Hold, then switch."],
+ m:["Collapsing all your weight onto the neck","Hips shifting off center"],e:"Smaller reach",h:"Reach the top arm overhead"},
+happy:{f:[{t:-90,an:"hip",a:[140,170,140,170],l:[-150,178,-150,178],f:[90,90]},{t:-90,an:"hip",a:[144,170,144,170],l:[-155,178,-155,178],f:[90,90]}],tg:"Inner thighs, hips and low back",
+ s:["Lie on your back.","Bend your knees toward your armpits.","Hold the outsides of your feet, soles up.","Rock gently side to side."],
+ m:["Lifting your head","Tailbone lifting"],e:"Hold your shins",h:"Pull knees lower"},
+sup:{f:[sp({l:SUPL}),sp({a:[-90,-90,-90,-90],l:[108,15,108,15]})],tg:"Low back and outer hips",
+ s:["Lie on your back, knees bent.","Arms out wide.","Let both knees fall to one side.","Look the other way and breathe. Switch."],
+ m:["Shoulders lifting off the floor","Forcing the knees down"],e:"Pillow under the knees",h:"Straighten the top leg"},
+pigeon:{f:[{a:[3,3,3,3],l:[88,-95,-90,-90],f:[-90,-170],an:"hip"},{t:82,h:20,a:[92,92,92,92],l:[88,-95,-90,-90],f:[-90,-170],an:"hip"}],tg:"Outer hip and glutes",
+ s:["From hands and knees, bring one knee forward behind your wrist.","Slide the other leg straight back.","Square your hips and sit tall.","Fold forward if you can and breathe."],
+ m:["Leaning onto one hip","Front knee pain (back off if so)"],e:"Pillow under the front hip, or figure-4 instead",h:"Fold lower"},
+legsUp:{f:[{t:-90,an:"hip",ax:76,a:SUPA,l:[180,180,180,180],f:[-90,-90]},{t:-90,an:"hip",ax:76,a:[-90,-90,-90,-90],l:[180,180,180,180],f:[-90,-90]},{wall:82}],tg:"Calves, hamstrings; relaxation",
+ s:["Sit sideways next to a wall.","Swing your legs up the wall as you lie back.","Rest your arms out.","Breathe slowly."],
+ m:["Hips too far from the wall"],e:"Bend your knees",h:"Stay 3-5 minutes"},
+sideBend:{f:[{v:"f",a:[-165,-172,165,172],l:[-4,0,4,0]},{v:"f",t:160,a:[-150,-160,155,150],l:[-4,0,4,0]}],tg:"Sides of the waist",
+ s:["Stand tall, feet hip-width.","Reach both arms up.","Lean over to one side.","Breathe and come back up slowly."],
+ m:["Leaning forward","Collapsing into the hip"],e:"One arm up, hand on hip",h:"Cross feet for more stretch"},
+frogSt:{f:[{t:84,a:[0,90,0,90],l:[0,-90,0,-90],an:"e1",ax:84,f:[-180,-180]},{t:76,a:[-12,90,-12,90],l:[-28,-90,-28,-90],an:"e1",ax:84,f:[-180,-180]}],tg:"Inner thighs and hips",
+ s:["On forearms and knees, open your knees wide.","Keep ankles in line with knees.","Rock your hips back slowly.","Hold where you feel it."],
+ m:["Knees too wide too soon","Arching your back"],e:"Knees less wide, pillows under them",h:"Hold longer"}
+};
+for(var k in G4)G[k]=G4[k];
+var GB={kickL:"gkick",kickR:"gkick",kick:"kick",latL:"latl",latR:"latl",latAlt:"latl",lat:"lat",calfL:"calfst",calfR:"calfst",calf:"calf",rowL:"row1",rowR:"row1",quadL:"quadst",quadR:"quadst",curtAlt:"curt",standObL:"standOb",standObR:"standOb",sideDipL:"sideDip",sideDipR:"sideDip",twistSL:"twistS",twistSR:"twistS",sideBendL:"sideBend",sideBendR:"sideBend"};
+function gbase(k){if(GB[k])return GB[k];if(G[k])return k;var b=k.replace(/(L|R|Alt)$/,"");return G[b]?b:null}
+
+// ---------- Exercise guide UI ----------
+var NAME2KEY={};for(var xk in X)NAME2KEY[X[xk][0].toLowerCase()]=xk;
+function exInfo(e){var key=(e.k&&X[e.k]&&X[e.k][0]===e.name)?e.k:NAME2KEY[String(e.name||"").trim().toLowerCase()];var b=key?gbase(key):null;return {key:key,base:b,g:b?G[b]:null}}
+function baseName(b){for(var k in X)if(gbase(k)===b)return X[k][0].replace(/ \((left|right)[^)]*\)/i,"").replace(/^Alternating /,"");return b}
+function figFor(base,k,cls){return base&&G[base]?figSVG(G[base].f,k,cls):genericSVG(cls)}
+function howHTML(e,base){
+  var g=base?G[base]:(e?exInfo(e).g:null),o="",notes=e&&e.notes?'<div class="hk">My notes</div><p>'+esc(e.notes)+'</p>':"";
+  if(!g)return notes||'<p>No guide for this move yet. Open the workout, tap <b>Edit</b>, and add your own notes under the move.</p>';
+  o+='<div class="hk">What you should feel</div><p>'+esc(g.tg)+'</p>';
+  o+='<div class="hk">How to do it</div><ol>'+g.s.map(function(x){return '<li>'+esc(x)+'</li>'}).join("")+'</ol>';
+  o+='<div class="hk">Avoid</div><ul>'+g.m.map(function(x){return '<li>'+esc(x)+'</li>'}).join("")+'</ul>';
+  o+='<div class="hk">Make it easier or harder</div><p>⬇️ Easier: '+esc(g.e)+'<br>⬆️ Harder: '+esc(g.h)+'</p>';
+  return o+notes;
+}
+function exSheet(e,base){
+  var I=e?exInfo(e):{base:base,g:G[base]},b=I.base,name=e?e.name:baseName(b);
+  var o='<div class="kick">Exercise guide</div><h2>'+esc(name)+'</h2>';
+  o+='<div class="gfig" data-fig="'+(b||"")+'">'+figFor(b,0)+'</div>';
+  if(b)o+='<div class="row" style="margin:8px 0"><div class="gthumb">'+figFor(b,0)+'<span>Start</span></div><div class="gthumb">'+figFor(b,1)+'<span>End</span></div></div>';
+  if(e)o+='<div class="chips"><span class="pill">'+esc(WT(e.wt))+'</span>'+(e.reps?'<span class="pill">Target: '+esc(e.reps)+'</span>':'')+'</div>';
+  o+='<div class="guide">'+howHTML(e,e?null:b)+'</div>';
+  openSheet(o);
+}
+function guideSections(){var secs=[["Arms, back & shoulders",Object.keys(G2)],["Core, cardio & combos",Object.keys(G3)],["Stretches",Object.keys(G4)]],used={};secs.forEach(function(s){s[1].forEach(function(k){used[k]=1})});secs.unshift(["Legs, glutes & thighs",Object.keys(G).filter(function(k){return !used[k]})]);return secs}
+function movesList(){
+  var q=(UI.mvq||"").toLowerCase(),o="";
+  guideSections().forEach(function(s){var ks=s[1].filter(function(b){return !q||baseName(b).toLowerCase().indexOf(q)>=0||G[b].tg.toLowerCase().indexOf(q)>=0});if(!ks.length)return;
+    o+='<h3 style="margin:14px 2px 4px">'+s[0]+'</h3>'+ks.map(function(b){return '<button class="wcard" data-a="exG" data-b="'+b+'"><div class="thumb">'+figFor(b,1)+'</div><div class="si"><div class="st">'+esc(baseName(b))+'</div><div class="sd">'+esc(G[b].tg)+'</div></div><span class="sub">›</span></button>'}).join("")});
+  return o||'<div class="empty">No moves match.</div>';
+}
+var FIGT0=0;
+function figLoop(ts){requestAnimationFrame(figLoop);if(ts-FIGT0<45)return;FIGT0=ts;
+  var els=document.querySelectorAll("#player.on [data-fig],#modal.on [data-fig]");if(!els.length)return;
+  var per=2800,ph=(ts%per)/per,k=ph<.4?ph/.4:ph<.5?1:ph<.9?1-(ph-.5)/.4:0;k=k*k*(3-2*k);
+  for(var i=0;i<els.length;i++){var b=els[i].getAttribute("data-fig");if(b&&G[b])els[i].innerHTML=figSVG(G[b].f,k)}
+}
 
 var KEY="glow3",APP_URL="https://princesspeach5.github.io/glow/";
 var BY=["SU","MO","TU","WE","TH","FR","SA"],DN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],DNL=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -526,20 +1059,24 @@ function ptick(){
 }
 function drawPlayer(){
   if(!P)return;var st=curStep(),el=document.getElementById("player"),rem=P.paused?P.rem:Math.max(0,Math.ceil((P.end-Date.now())/1000));
-  el.classList.toggle("rest",st.t==="rest");el.classList.toggle("ready",st.t==="ready");
-  var e=st.t==="work"?st.ex:nextUp(P.i).ex,nx=st.t==="work"?nextUp(P.i):null;
-  var done=0;for(var j=0;j<P.i;j++)done+=P.steps[j].secs;done+=st.secs-rem;
-  var C=2*Math.PI*120,frac=st.secs?rem/st.secs:0;
-  var head=st.t==="work"?"Round "+(st.r+1)+" of "+st.R+" · Move "+(st.j+1)+" of "+st.n:(st.t==="rest"?"Rest · up next":"Get ready · first up");
-  el.innerHTML='<div class="row"><div class="tiny" style="color:#fff;opacity:.8">'+esc(P.w.name)+' · '+Math.round(P.total/60)+' min</div><button class="nf ib" style="background:rgba(255,255,255,.16);color:#fff" data-a="pEnd">✕</button></div>'+
-   '<div class="pbar" style="margin-top:8px"><i style="width:'+Math.min(100,done/P.total*100)+'%"></i></div>'+
-   '<div class="pmeta" style="margin-top:12px;opacity:.85;font-size:14px">'+head+'</div>'+
-   '<div class="pring"><svg viewBox="0 0 260 260"><circle cx="130" cy="130" r="120" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="12"/><circle cx="130" cy="130" r="120" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round" stroke-dasharray="'+C+'" stroke-dashoffset="'+(C*(1-frac))+'"/></svg><div class="t">'+rem+'</div></div>'+
-   '<div class="pname">'+(st.t==="rest"?"Rest":"")+(st.t==="rest"?'<div style="font-size:20px;opacity:.85;margin-top:4px">Next: '+esc(e.name)+'</div>':esc(e.name))+'</div>'+
-   '<div class="pmeta"><span class="pill">'+esc(WT(e.wt))+'</span>'+(e.reps?'<span class="pill">Target: '+esc(e.reps)+'</span>':'')+'</div>'+
-   '<div class="pcue">'+esc(e.cue||"")+'</div>'+
-   '<div class="pnext">'+(nx?'Then: <b>'+esc(nx.ex.name)+'</b> · '+nx.secs+'s':(st.t==="work"?'<b>Last move. Finish strong.</b>':'&nbsp;'))+'</div>'+
-   '<div class="pctl"><button data-a="pBack">⏮</button><button class="main" data-a="pPause">'+(P.paused?"▶ Resume":"⏸ Pause")+'</button><button data-a="pSkip">⏭</button></div>';
+  var C=2*Math.PI*120,frac=st.secs?rem/st.secs:0,done=0;for(var j=0;j<P.i;j++)done+=P.steps[j].secs;done+=st.secs-rem;
+  var key=P.i+"|"+(P.paused?1:0)+"|"+(UI.how?1:0);
+  if(P.drawn!==key){P.drawn=key;
+    el.classList.toggle("rest",st.t==="rest");el.classList.toggle("ready",st.t==="ready");
+    var e=st.t==="work"?st.ex:nextUp(P.i).ex,nx=st.t==="work"?nextUp(P.i):null,b=exInfo(e).base||"";
+    var head=st.t==="work"?"Round "+(st.r+1)+" of "+st.R+" · Move "+(st.j+1)+" of "+st.n:(st.t==="rest"?"Rest · get set for the next move":"Get ready · first up");
+    el.innerHTML='<div class="row"><div class="tiny" style="color:#fff;opacity:.8">'+esc(P.w.name)+' · '+Math.round(P.total/60)+' min</div><button class="nf ib" style="background:rgba(255,255,255,.16);color:#fff" data-a="pEnd">✕</button></div>'+
+     '<div class="pbar" style="margin-top:8px"><i id="pb"></i></div>'+
+     '<div class="pmeta" style="margin-top:8px;opacity:.85;font-size:14px">'+head+'</div>'+
+     '<div class="pfigrow"><div class="pfig" data-a="pHow" data-fig="'+b+'">'+figFor(b,0)+'</div><div class="pring sm"><svg viewBox="0 0 260 260"><circle cx="130" cy="130" r="120" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="14"/><circle id="prc" cx="130" cy="130" r="120" fill="none" stroke="#fff" stroke-width="14" stroke-linecap="round" stroke-dasharray="'+C+'"/></svg><div class="t" id="pt"></div></div></div>'+
+     '<div class="pname">'+(st.t==="rest"?'<div style="font-size:16px;opacity:.8">Next</div>':'')+esc(e.name)+'</div>'+
+     '<div class="pmeta"><span class="pill">'+esc(WT(e.wt))+'</span>'+(e.reps?'<span class="pill">Target: '+esc(e.reps)+'</span>':'')+'</div>'+
+     '<div class="pcue">'+esc(e.cue||"")+'</div>'+
+     '<button class="howbtn" data-a="pHow">'+(UI.how?"Hide how-to ▴":"How to do it ▾")+'</button>'+(UI.how?'<div class="phow guide">'+howHTML(e)+'</div>':'')+
+     '<div class="pnext">'+(nx?'Then: <b>'+esc(nx.ex.name)+'</b> · '+nx.secs+'s':(st.t==="work"?'<b>Last move. Finish strong.</b>':'&nbsp;'))+'</div>'+
+     '<div class="pctl"><button data-a="pBack" aria-label="Back">⏮</button><button class="main" data-a="pPause">'+(P.paused?"▶ Resume":"⏸ Pause")+'</button><button data-a="pSkip" aria-label="Skip">⏭</button></div>';
+  }
+  var t=document.getElementById("pt");if(t)t.textContent=rem;var c=document.getElementById("prc");if(c)c.setAttribute("stroke-dashoffset",C*(1-frac));var pb=document.getElementById("pb");if(pb)pb.style.width=Math.min(100,done/P.total*100)+"%";
 }
 function finishPlayer(){
   var p=P;P=null;document.getElementById("player").classList.remove("on");try{WL&&WL.release();WL=null}catch(e){}
@@ -644,7 +1181,8 @@ function vWorkouts(){
   var list=ids.filter(function(i){return c==="all"||(c==="mine"?!ws[i].preset:ws[i].cat===c)});
   var o='<header><div><div class="sub">'+ids.length+' workouts · tap to start, edit or copy</div><h1>Workouts</h1></div></header><main>';
   o+='<div class="row" style="margin-top:8px"><button class="btn sm" data-a="wNew">＋ Build my own</button><button class="btn sm ghost" data-a="surprise">🎲 Surprise me</button></div>';
-  o+='<div class="chips scroll"><button class="chip'+(c==="all"?" on":"")+'" data-a="cat" data-v="all">All</button><button class="chip'+(c==="mine"?" on":"")+'" data-a="cat" data-v="mine">Mine</button>'+Object.keys(CATS).map(function(x){return '<button class="chip'+(c===x?" on":"")+'" data-a="cat" data-v="'+x+'">'+CATICON[x]+' '+CATS[x]+'</button>'}).join("")+'</div>';
+  o+='<div class="chips scroll"><button class="chip'+(c==="all"?" on":"")+'" data-a="cat" data-v="all">All</button><button class="chip'+(c==="moves"?" on":"")+'" data-a="cat" data-v="moves">📖 How-to guide</button><button class="chip'+(c==="mine"?" on":"")+'" data-a="cat" data-v="mine">Mine</button>'+Object.keys(CATS).map(function(x){return '<button class="chip'+(c===x?" on":"")+'" data-a="cat" data-v="'+x+'">'+CATICON[x]+' '+CATS[x]+'</button>'}).join("")+'</div>';
+  if(c==="moves")return o+'<input type="text" placeholder="Search moves or muscles" value="'+esc(UI.mvq||"")+'" data-c="mvq" style="margin-top:4px"><div id="mvlist">'+movesList()+'</div></main>';
   var lu=usedMap();
   if(!list.length)o+='<div class="empty">Nothing here yet. Tap “Build my own”.</div>';
   list.sort(function(a,b){return (ws[a].cat+ws[a].name).localeCompare(ws[b].cat+ws[b].name)}).forEach(function(i){var w=ws[i];
@@ -708,7 +1246,7 @@ function vMe(){
     '<div class="tog" style="margin-top:8px"><div><b>Walking check</b><div class="tiny">Alert if miles are short at this time</div></div>'+sw(s.walkOn,"set",' data-k="walkOn"')+'</div>'+(s.walkOn?'<input type="time" value="'+s.walkCheck+'" data-c="walkCheck">':'')+
     '<button class="btn ghost" data-a="testAlarm" style="margin-top:10px">Test an alert</button></div>';
   o+='<div class="card"><h2>Your data</h2><p class="sub">Saved on this phone only. Back it up now and then.</p><div class="row"><button class="btn sm ghost" data-a="export">Back up</button><button class="btn sm ghost" data-a="import">Restore</button></div><input type="file" id="imp" accept=".json,application/json" style="display:none"><button class="btn sm ghost" data-a="reset" style="margin-top:10px;color:var(--red)">Erase everything</button></div>';
-  return o+'<div class="tiny" style="text-align:center;margin:10px 0 20px">Glow 3 · made for Wiley</div></main>';
+  return o+'<div class="tiny" style="text-align:center;margin:10px 0 20px">Glow 3.1 · made for Wiley</div></main>';
 }
 function render(){
   var y=window.scrollY,f={today:vToday,workouts:vWorkouts,plan:vPlan,progress:vProgress,me:vMe}[UI.tab]||vToday;
@@ -721,7 +1259,7 @@ function wDetail(id,slot){
   var w=S.workouts[id];if(!w)return;var len=slot!=null?slotLen(slot):(S.days[new Date().getDay()].len||7);UI.dLen=len;
   var o='<div class="kick">'+(CATICON[w.cat]||"")+' '+esc(CATS[w.cat]||"")+'</div><h2>'+esc(w.name)+'</h2><p class="sub">'+esc(w.desc||"")+'</p>';
   o+='<label class="f">Length</label>'+(w.fit===false?'<div class="sub">'+w.rounds+' rounds · about '+estMin(w,7)+' min</div>':seg([[5,"5 min"],[7,"7 min"],[10,"10 min"]],len,"dLen"));
-  o+='<div class="card" style="padding:6px 14px">'+w.ex.map(function(e){return '<div class="slot"><div class="si"><div class="st">'+esc(e.name)+'</div><div class="sd">'+e.secs+'s · '+esc(e.reps||"")+' · '+esc(WT(e.wt))+'</div></div></div>'}).join("")+'</div>';
+  o+='<div class="tiny" style="margin-top:10px">Tap a move to see how to do it.</div><div class="card" style="padding:6px 10px;margin-top:6px">'+w.ex.map(function(e,i){return '<button class="slot exb" data-a="exI" data-w="'+id+'" data-i="'+i+'"><div class="thumb">'+figFor(exInfo(e).base,1)+'</div><div class="si"><div class="st">'+esc(e.name)+'</div><div class="sd">'+e.secs+'s · '+esc(e.reps||"")+' · '+esc(WT(e.wt))+'</div></div><span class="sub">ⓘ</span></button>'}).join("")+'</div>';
   o+='<div class="tiny" style="margin-bottom:10px">Rest '+restFor(w)+'s between moves ('+S.settings.intensity+' intensity). Time per move stretches or shrinks to fit the length you pick.</div>';
   o+='<button class="btn" data-a="dStart" data-id="'+id+'"'+(slot!=null?' data-s="'+slot+'"':'')+'>▶ Start</button>';
   var L=ensureToday();if(L.type==="full"){o+='<label class="f">Put this in today\'s plan</label><div class="row">'+[0,1,2].map(function(s){return '<button class="btn sm ghost" data-a="swapIn" data-id="'+id+'" data-s="'+s+'"'+(L.done[s]?" disabled style=\"opacity:.4\"":"")+'>'+esc(S.slots[s].label)+'</button>'}).join("")+'</div>'}
@@ -734,7 +1272,7 @@ function edSheet(){
   o+='<label class="f">Type</label><select data-c="ed" data-f="cat">'+Object.keys(CATS).map(function(c){return '<option value="'+c+'"'+(w.cat===c?" selected":"")+'>'+CATS[c]+'</option>'}).join("")+'</select>';
   o+='<div class="row"><div><label class="f">Rest between moves (sec)</label><input type="number" inputmode="numeric" min="0" max="120" value="'+w.rest+'" data-c="ed" data-f="rest"></div><div><label class="f">Rounds</label><select data-c="ed" data-f="fitR"><option value="fit"'+(w.fit!==false?" selected":"")+'>Fit to my length</option>'+[1,2,3,4,5].map(function(n){return '<option value="'+n+'"'+(w.fit===false&&+w.rounds===n?" selected":"")+'>'+n+' round'+(n>1?"s":"")+'</option>'}).join("")+'</select></div></div>';
   o+='<label class="f">Moves</label><datalist id="exlist">'+Object.keys(X).map(function(k){return '<option value="'+esc(X[k][0])+'">'}).join("")+'</datalist>';
-  w.ex.forEach(function(e,i){o+='<div class="exrow"><div class="row"><input type="text" list="exlist" value="'+esc(e.name)+'" placeholder="Move name" data-c="ex" data-i="'+i+'" data-f="name"><button class="ib nf" data-a="exUp" data-i="'+i+'">↑</button><button class="ib nf" data-a="exDel" data-i="'+i+'" style="color:var(--red)">✕</button></div><div class="g"><input type="number" inputmode="numeric" min="5" max="300" value="'+e.secs+'" data-c="ex" data-i="'+i+'" data-f="secs" aria-label="seconds"><input type="text" value="'+esc(e.reps||"")+'" placeholder="Reps" data-c="ex" data-i="'+i+'" data-f="reps"><select data-c="ex" data-i="'+i+'" data-f="wt">'+["bw","8","10","8x2","10x2"].map(function(x){return '<option value="'+x+'"'+(e.wt===x?" selected":"")+'>'+WT(x)+'</option>'}).join("")+'</select></div><div class="tiny" style="margin-top:4px">seconds · reps target · weight</div></div>'});
+  w.ex.forEach(function(e,i){o+='<div class="exrow"><div class="row"><input type="text" list="exlist" value="'+esc(e.name)+'" placeholder="Move name" data-c="ex" data-i="'+i+'" data-f="name"><button class="ib nf" data-a="exUp" data-i="'+i+'">↑</button><button class="ib nf" data-a="exDel" data-i="'+i+'" style="color:var(--red)">✕</button></div><div class="g"><input type="number" inputmode="numeric" min="5" max="300" value="'+e.secs+'" data-c="ex" data-i="'+i+'" data-f="secs" aria-label="seconds"><input type="text" value="'+esc(e.reps||"")+'" placeholder="Reps" data-c="ex" data-i="'+i+'" data-f="reps"><select data-c="ex" data-i="'+i+'" data-f="wt">'+["bw","8","10","8x2","10x2"].map(function(x){return '<option value="'+x+'"'+(e.wt===x?" selected":"")+'>'+WT(x)+'</option>'}).join("")+'</select></div><div class="tiny" style="margin-top:4px">seconds · reps target · weight</div><textarea rows="2" data-c="ex" data-i="'+i+'" data-f="notes" placeholder="My notes: how to do it, what to feel (optional)" style="margin-top:6px;font-size:16px">'+esc(e.notes||"")+'</textarea></div>'});
   o+='<button class="btn ghost" data-a="exAdd">＋ Add a move</button><div class="tiny" style="margin:8px 0">About '+estMin(w,7)+' min at 7-minute length.</div><button class="btn" data-a="edSave">Save workout</button>';
   if(!w._new&&w.preset)o+='<button class="btn ghost" data-a="edReset" style="margin-top:8px">Reset to original</button>';
   openSheet(o);
@@ -770,6 +1308,9 @@ var A={
   swapIn:function(e){var L=ensureToday(),s=+e.dataset.s;if(L.done[s])return;L.pick[s]=e.dataset.id;save();closeSheet();UI.tab="today";render();toast("Added to "+S.slots[s].label)},
   surprise:function(){var ids=cands("g:any"),lu=usedMap(),L=ensureToday();ids=ids.filter(function(i){return L.pick.indexOf(i)<0});ids.sort(function(a,b){return (lu[a]||"")<(lu[b]||"")?-1:1});var pool=ids.slice(0,Math.max(5,Math.ceil(ids.length/3)));wDetail(pool[Math.floor(Math.random()*pool.length)])},
   cat:function(e){UI.cat=e.dataset.v;render()},
+  exI:function(e){var w=S.workouts[e.dataset.w];if(w&&w.ex[+e.dataset.i])exSheet(w.ex[+e.dataset.i])},
+  exG:function(e){exSheet(null,e.dataset.b)},
+  pHow:function(){UI.how=!UI.how;if(P){P.drawn=null;drawPlayer()}},
   wNew:function(){ED={_new:true,id:"my"+Date.now().toString(36),name:"My workout",cat:"full",desc:"My own workout.",rest:12,fit:true,rounds:2,ex:[{name:"Plié squat pulses",secs:40,reps:"20",wt:"bw",cue:""},{name:"Bicep curl",secs:40,reps:"15",wt:"8",cue:""}]};edSheet()},
   wEdit:function(e){ED=JSON.parse(JSON.stringify(S.workouts[e.dataset.id]));edSheet()},
   wCopy:function(e){var w=JSON.parse(JSON.stringify(S.workouts[e.dataset.id]));w.id="my"+Date.now().toString(36);w.name+=" (my version)";w.preset=false;ED=w;ED._new=true;edSheet()},
@@ -821,12 +1362,13 @@ var C={
   slotLabel:function(e){S.slots[+e.dataset.i].label=e.value.trim()||"Workout";save()},
   slotTime:function(e){if(!e.value)return;S.slots[+e.dataset.i].time=e.value;var k=today();if(S.alerts[k])delete S.alerts[k][e.dataset.i];save();render()},
   dayPick:function(e){S.days[+e.dataset.d].picks[+e.dataset.s]=e.value;dayChanged(+e.dataset.d)},
+  mvq:function(e){UI.mvq=e.value;var l=document.getElementById("mvlist");if(l)l.innerHTML=movesList()},
   walkCheck:function(e){if(e.value){S.settings.walkCheck=e.value;save()}},
   ed:function(e){var f=e.dataset.f;if(f==="fitR"){if(e.value==="fit")ED.fit=true;else{ED.fit=false;ED.rounds=+e.value}}else ED[f]=f==="rest"?+e.value:e.value},
-  ex:function(e){var x=ED.ex[+e.dataset.i],f=e.dataset.f;x[f]=f==="secs"?+e.value:e.value;if(f==="name"){for(var k in X)if(X[k][0]===e.value){x.wt=X[k][1];x.cue=X[k][2];var sel=document.querySelector('select[data-c=ex][data-i="'+e.dataset.i+'"]');if(sel)sel.value=x.wt}}}
+  ex:function(e){var x=ED.ex[+e.dataset.i],f=e.dataset.f;x[f]=f==="secs"?+e.value:e.value;if(f==="name"){delete x.k;for(var k in X)if(X[k][0]===e.value){x.k=k;x.wt=X[k][1];x.cue=X[k][2];var sel=document.querySelector('select[data-c=ex][data-i="'+e.dataset.i+'"]');if(sel)sel.value=x.wt}}}
 };
 document.addEventListener("click",function(ev){unlock();if(ev.target.id==="modal"){closeSheet();return}var e=ev.target.closest("[data-a]");if(!e)return;if(e.id==="modal"&&ev.target!==e)return;var f=A[e.dataset.a];if(f){ev.preventDefault();f(e)}});
-document.addEventListener("input",function(ev){var e=ev.target.closest("[data-c]");if(e&&C[e.dataset.c]&&(e.dataset.c==="ed"||e.dataset.c==="ex"||e.dataset.c==="slotLabel"))C[e.dataset.c](e)});
+document.addEventListener("input",function(ev){var e=ev.target.closest("[data-c]");if(e&&C[e.dataset.c]&&(e.dataset.c==="ed"||e.dataset.c==="ex"||e.dataset.c==="slotLabel"||e.dataset.c==="mvq"))C[e.dataset.c](e)});
 document.addEventListener("change",function(ev){var e=ev.target;if(e.id==="imp"){var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(d.v!==3||!d.workouts)throw 0;if(confirm("Replace everything with this backup?")){S=d;save();render();toast("Restored")}}catch(x){toast("That is not a Glow backup")}};if(e.files[0])r.readAsText(e.files[0]);e.value="";return}
   e=e.closest("[data-c]");if(e&&C[e.dataset.c])C[e.dataset.c](e)});
 document.addEventListener("visibilitychange",function(){if(!document.hidden){render();checkAlerts();if(P&&!WL&&navigator.wakeLock)navigator.wakeLock.request("screen").then(function(l){WL=l}).catch(function(){})}});
@@ -834,7 +1376,7 @@ document.addEventListener("visibilitychange",function(){if(!document.hidden){ren
 // ---------- boot ----------
 function icsPage(){if(location.hash.indexOf("#ics=")!==0)return false;closeSheet();$("#app").innerHTML='<header><div><h1>Glow reminders</h1></div></header><main><div class="card"><p>Tap below to add your Glow workout reminders to Calendar.</p><button class="btn" data-a="icsFromLink">📅 Add reminders to Calendar</button></div><a class="btn ghost" style="display:block;text-align:center;text-decoration:none;line-height:24px" href="./">Open Glow</a></main>';return true}
 function boot(){
-  load();ensureToday();save();
+  requestAnimationFrame(figLoop);load();ensureToday();save();
   window.addEventListener("hashchange",function(){if(icsPage())return;render()});
   if(icsPage())return;
   render();
